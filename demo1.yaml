@@ -1,0 +1,72 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: string-passing-
+  namespace: argo
+  labels:
+    app: string-passing
+  # RBAC updated to include patch/update verbs for workflowtaskresults
+spec:
+  serviceAccountName: argo-workflow
+  entrypoint: main
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+  templates:
+  - name: main
+    steps:
+    - - name: produce-message
+        template: step1
+    - - name: check-message              # added gate step
+        template: gate
+        arguments:
+          parameters:
+          - name: message
+            value: "{{steps.produce-message.outputs.parameters.message}}"
+    - - name: consume-message
+        template: step2
+        when: "{{steps.check-message.outputs.parameters.allow}} == true"  # conditional execution
+        arguments:
+          parameters:
+          - name: message
+            value: "{{steps.produce-message.outputs.parameters.message}}"
+  - name: step1
+    script:
+      image: python:3.9
+      command: [python]
+      source: |
+        print("Hello from step 1!")
+        with open("/tmp/message.txt", "w") as f:
+            f.write("Hello from step 1!")
+    outputs:
+      parameters:
+      - name: message
+        valueFrom:
+          path: /tmp/message.txt
+  - name: gate                            # added template
+    inputs:
+      parameters:
+      - name: message
+    script:
+      image: python:3.9
+      command: [python]
+      source: |
+        msg = "{{inputs.parameters.message}}"
+        print("Gate evaluating message:", msg)
+        allow = "true" if "Hello" in msg else "false"
+        print("Allow =", allow)
+        with open("/tmp/allow.txt","w") as f:
+            f.write(allow)
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          path: /tmp/allow.txt
+  - name: step2
+    inputs:
+      parameters:
+      - name: message
+    script:
+      image: python:3.9
+      command: [python]
+      source: |
+        print("Step 2 received message:", "{{inputs.parameters.message}}")

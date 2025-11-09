@@ -1,0 +1,103 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: conditional-step-
+  namespace: argo
+  labels:
+    app: conditional-step
+spec:
+  serviceAccountName: argo-workflow
+  entrypoint: main
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+
+  templates:
+  - name: main
+    steps:
+    - - name: produce-message
+        template: step1
+    - - name: check-message
+        template: gate
+        arguments:
+          parameters:
+          - name: message
+            value: "{{steps.produce-message.outputs.parameters.message}}"
+    - - name: consume-message
+        template: step2
+        when: "{{steps.check-message.outputs.parameters.allow}} == true"
+        arguments:
+          parameters:
+          - name: message
+            value: "{{steps.produce-message.outputs.parameters.message}}"
+
+  # --- step1 ---
+  - name: step1
+    script:
+      image: python:3.9
+      command: [python]
+      source: |
+        print("Hello from step 1!")
+        with open("/tmp/message.txt", "w") as f:
+            f.write("Hello from step 1!")
+    outputs:
+      parameters:
+      - name: message
+        valueFrom:
+          path: /tmp/message.txt
+
+  # --- manual gate ---
+  - name: gate
+    inputs:
+      parameters:
+      - name: message
+    steps:
+    - - name: wait-for-approval
+        template: wait-approval
+    - - name: set-allow
+        template: set-allow
+        arguments:
+          parameters:
+          - name: approved
+            value: "{{steps.wait-for-approval.outputs.parameters.approved}}"
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          parameter: "{{steps.set-allow.outputs.parameters.allow}}"
+
+  - name: wait-approval
+    suspend: {}
+    outputs:
+      parameters:
+      - name: approved
+        valueFrom:
+          supplied: {}
+
+  - name: set-allow
+    inputs:
+      parameters:
+      - name: approved
+    script:
+      image: python:3.9
+      command: [python]
+      source: |
+        approved = "{{inputs.parameters.approved}}"
+        allow = "true" if approved == "true" else "false"
+        with open("/tmp/allow.txt","w") as f:
+            f.write(allow)
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          path: /tmp/allow.txt
+
+  # --- step2 ---
+  - name: step2
+    inputs:
+      parameters:
+      - name: message
+    script:
+      image: python:3.9
+      command: [python]
+      source: |
+        print("Step 2 received message:", "{{inputs.parameters.message}}")
