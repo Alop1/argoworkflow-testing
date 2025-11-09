@@ -10,7 +10,7 @@ This repository shows a minimal setup of Argo Workflows in a Kubernetes cluster 
 - `human_in_loop_automation.py` – Python script automating approval via Argo API/SDK
 
 ## Prerequisites
-- Kubernetes cluster and `kubectl` configured
+- Kubernetes cluster(e.g minikube, k0s) and `kubectl` configured
 - `argo` CLI installed (https://github.com/argoproj/argo-workflows/releases)
 - Optional: Python 3.9+ for automation script (`pip install argo-workflows pyyaml requests`)
 
@@ -76,6 +76,7 @@ argo submit -n argo human_in_loop.yaml
 ```
 Workflow will suspend at `wait-for-approval`. After it reaches Suspended phase, set the output parameter then resume:
 ```bash
+argo list -n argo
 argo node set <workflow-name> -n argo \
   --output-parameter approved=true \
   --node-field-selector displayName=wait-for-approval
@@ -97,6 +98,38 @@ Environment overrides:
 - `SUSPEND_NODE` (default wait-for-approval)
 - `APPROVED_VALUE` (true/false)
 - `ARGO_TOKEN` (optional Bearer token when auth-mode=server)
+
+## Hera SDK Alternative (human_in_loop_hera.py)
+This script recreates `human_in_loop.yaml` using the Hera SDK instead of raw YAML.
+
+Install Hera:
+```bash
+pip install hera-workflows
+```
+Render the workflow YAML (no submit):
+```bash
+python human_in_loop_hera.py --print-yaml > hera_rendered.yaml
+```
+Submit directly (after port-forwarding the Argo server):
+```bash
+kubectl -n argo port-forward svc/argo-server 2746:2746 &
+python human_in_loop_hera.py --submit --server http://localhost:2746
+```
+Manual approval (same as raw YAML version):
+```bash
+argo list -n argo
+argo node set <workflow-name> -n argo \
+  --output-parameter approved=true \
+  --node-field-selector displayName=wait-for-approval
+argo resume <workflow-name> -n argo
+```
+Key points:
+- Uses Suspend template to create a human approval gate.
+- Exposes the gate output parameter `allow` after deriving from `approved`.
+- Conditional execution of `step2` when `allow == true`.
+- Environment variables used to pass parameters inside scripts (APPROVED, MSG).
+
+Environment overrides (optional): set `ARGO_NAMESPACE`, `ARGO_SERVICE_ACCOUNT` before running.
 
 ## Logs
 ```bash
@@ -133,4 +166,3 @@ If pod GC deletes pods quickly, adjust `ttlStrategy` or remove aggressive `podGC
 
 ## License
 Not specified – add if needed.
-
