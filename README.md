@@ -101,7 +101,7 @@ The `resume_workflow.py` script demonstrates programmatic workflow management us
 
 Run:
 ```bash
-python resume_workflow.py
+python resume_workflow.py --server http://localhost:2746
 ```
 
 The script will:
