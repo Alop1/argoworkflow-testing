@@ -7,22 +7,22 @@ This repository shows a minimal setup of Argo Workflows in a Kubernetes cluster 
 - `rbac.yaml` – service account + Role/RoleBinding (adds workflowtaskresults permissions)
 - `demo1.yaml` – simple multi-step workflow passing a parameter
 - `human_in_loop.yaml` – workflow with a suspend (manual approval) gate
-- `human_in_loop_automation.py` – Python script automating approval via Argo API/SDK
+- `create_human_in_loop_wf.py` – Python script creating WF via Argo SDK
+- `resume_workflow.py` – Argo SDK example for listing workflows, setting parameters, and resuming
 
 ## Prerequisites
 - Kubernetes cluster(e.g minikube, k0s) and `kubectl` configured
-- `argo` CLI installed (https://github.com/argoproj/argo-workflows/releases)
-- Optional: Python 3.9+ for automation script (`pip install argo-workflows pyyaml requests`)
+
 
 ## Install Argo Workflows
 ```bash
 kubectl create namespace argo || true
-kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/latest/download/install.yaml
+kubectl apply -n argo -f infra/install
 ```
 
-## Apply RBAC (adds workflowtaskresults + pod log access)
+### Apply RBAC (adds workflowtaskresults + pod log access)
 ```bash
-kubectl apply -f rbac.yaml
+kubectl apply -f infra/rbac.yaml
 ```
 Role grants verbs: create, get, list, watch, patch, update on `workflowtaskresults` plus read access to pods/pod logs.
 
@@ -30,9 +30,16 @@ Verify:
 ```bash
 kubectl get ns argo
 kubectl -n argo get sa argo-workflow
-kubectl -n argo get role argo-workflowtaskresults -o json | grep '"verbs"'
 kubectl get pods -n argo
 ```
+
+### Port-forward API/UI:
+IMPORTANT!!!
+```bash
+kubectl -n argo port-forward svc/argo-server 2746:2746
+```
+UI at: http://localhost:2746
+
 
 ## Run Sample Workflow
 ```bash
@@ -47,29 +54,8 @@ argo submit -n argo demo1.yaml --watch
 ```
 Step 1 writes message to a file; Argo exposes it as an output parameter consumed by step 2.
 
-## Enable Server Auth Mode (optional)
-```bash
-kubectl -n argo patch deploy argo-server \
-  --type='json' \
-  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--auth-mode=server"}]'
-```
-Disable TLS (optional for local testing):
-```bash
-kubectl -n argo patch deploy argo-server \
-  --type='json' \
-  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--secure=false"}]'
-```
-Wait for rollout:
-```bash
-kubectl -n argo rollout status deploy/argo-server
-```
-Port-forward API/UI:
-```bash
-kubectl -n argo port-forward svc/argo-server 2746:2746
-# UI at: http://localhost:2746
-```
 
-## Human-in-Loop Workflow (Manual Approval)
+## Human-in-Loop Workflow (YAML base)
 Submit:
 ```bash
 argo submit -n argo human_in_loop.yaml
@@ -84,52 +70,51 @@ argo resume <workflow-name> -n argo
 ```
 Replace `<workflow-name>` (e.g. `conditional-step-xxxxx`). Use `argo get -n argo @latest` to find it.
 
-## Automating Approval (Python Script)
+### Automating Approval (Python Script)
 ```bash
 pip install argo-workflows pyyaml requests
-kubectl -n argo port-forward svc/argo-server 2746:2746 &
+# kubectl -n argo port-forward svc/argo-server 2746:2746 &
 export ARGO_SERVER=http://localhost:2746
 python human_in_loop_automation.py --file human_in_loop.yaml --approve true
 ```
-Environment overrides:
-- `ARGO_SERVER` (default http://localhost:2746)
-- `ARGO_NAMESPACE` (default argo)
-- `WORKFLOW_FILE`
-- `SUSPEND_NODE` (default wait-for-approval)
-- `APPROVED_VALUE` (true/false)
-- `ARGO_TOKEN` (optional Bearer token when auth-mode=server)
 
-## Hera SDK Alternative (human_in_loop_hera.py)
-This script recreates `human_in_loop.yaml` using the Hera SDK instead of raw YAML.
+## Human-in-Loop Workflow (Code base)
+This script recreates `submit_human_in_loop_wf.py.yaml` using the Hera SDK instead of raw YAML.
 
-Install Hera:
-```bash
-pip install hera-workflows
-```
 Render the workflow YAML (no submit):
 ```bash
-python human_in_loop_hera.py --print-yaml > hera_rendered.yaml
+python create_human_in_loop_wf.py --print-yaml > hera_rendered.yaml
 ```
 Submit directly (after port-forwarding the Argo server):
 ```bash
-kubectl -n argo port-forward svc/argo-server 2746:2746 &
-python human_in_loop_hera.py --submit --server http://localhost:2746
+#kubectl -n argo port-forward svc/argo-server 2746:2746 &
+python create_human_in_loop_wf.py --submit --server http://localhost:2746
 ```
-Manual approval (same as raw YAML version):
-```bash
-argo list -n argo
-argo node set <workflow-name> -n argo \
-  --output-parameter approved=true \
-  --node-field-selector displayName=wait-for-approval
-argo resume <workflow-name> -n argo
-```
-Key points:
-- Uses Suspend template to create a human approval gate.
-- Exposes the gate output parameter `allow` after deriving from `approved`.
-- Conditional execution of `step2` when `allow == true`.
-- Environment variables used to pass parameters inside scripts (APPROVED, MSG).
+### Managing Workflows with Hera SDK (resume_workflow.py)
 
-Environment overrides (optional): set `ARGO_NAMESPACE`, `ARGO_SERVICE_ACCOUNT` before running.
+The `resume_workflow.py` script demonstrates programmatic workflow management using the Hera SDK:
+
+#### Features
+- **List workflows**: See all running/completed workflows
+- **Set output parameters**: Programmatically approve/reject suspended steps
+- **Resume workflows**: Continue execution after setting parameters
+
+Run:
+```bash
+python resume_workflow.py
+```
+
+The script will:
+1. List all workflows in the `argo` namespace
+2. Set the `approved` parameter to `"true"` on the suspended node
+3. Resume the workflow
+
+To reject instead, change:
+```python
+output_parameters='{"approved":"false"}'
+```
+
+
 
 ## Logs
 ```bash
@@ -148,21 +133,16 @@ If pod GC deletes pods quickly, adjust `ttlStrategy` or remove aggressive `podGC
 - Ecosystem: Argo Events, Argo CD, Argo Rollouts, Argo Artifacts
 
 ## Cons
-- Configuration complexity
 - Requires Kubernetes knowledge
 - Cluster resource overhead
 - Security considerations (RBAC, isolation)
-- Monitoring/log aggregation can be non-trivial
+
 
 ## References
 - Swagger / API: https://argo-workflows.readthedocs.io/en/latest/swagger/
 - Template types: https://argo-workflows.readthedocs.io/en/latest/workflow-concepts/#template-types
 - Examples: https://github.com/argoproj/argo-workflows/tree/main/examples
 
-## Troubleshooting
-- Permission error creating `workflowtaskresults`: ensure `rbac.yaml` applied and service account set (`spec.serviceAccountName: argo-workflow`).
-- Empty logs: pod GC might have removed pods; fetch logs while running or adjust retention.
-- Suspend not resuming: verify `approved` parameter set to `true` and resume command succeeded.
 
 ## License
 Not specified – add if needed.

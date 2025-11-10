@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import argparse, os, requests
 from hera.workflows import Workflow, Steps, Suspend, Parameter, WorkflowsService, Script
 
@@ -66,33 +65,11 @@ def build_wf(svc: WorkflowsService):
     return wf
 
 
-def detect_host_scheme(raw_host: str, verify_ssl: bool) -> str:
-    host = raw_host.strip()
-    if not host.startswith("http://") and not host.startswith("https://"):
-        host = "http://" + host
-    url = host + "/api/v1/info"
-    try:
-        r = requests.get(url, timeout=3, verify=verify_ssl)
-        txt = r.text.lower()
-        if r.status_code == 400 and "https" in txt and host.startswith("http://"):
-            return "https://" + host.split("://", 1)[1]
-        return host
-    except requests.exceptions.SSLError:
-        return "https://" + host.split("://", 1)[1]
-    except requests.exceptions.ConnectionError:
-        alt = "https://" + host.split("://", 1)[1]
-        try:
-            requests.get(alt + "/api/v1/info", timeout=3, verify=verify_ssl)
-            return alt
-        except Exception:
-            return host
-
 
 def make_service(server: str | None, verify_ssl: bool, no_check: bool) -> WorkflowsService:
-    base = server or os.getenv("ARGO_SERVER") or DEFAULT_HOST
-    host = base if no_check else detect_host_scheme(base, verify_ssl)
+    host = server or os.getenv("ARGO_SERVER") or DEFAULT_HOST
     token = os.getenv("ARGO_TOKEN")
-    return WorkflowsService(host=host, token=token, verify_ssl=verify_ssl)
+    return WorkflowsService(host=host, token=token, verify_ssl=False)
 
 
 def main():
@@ -100,15 +77,14 @@ def main():
     p.add_argument("--print-yaml", action="store_true")
     p.add_argument("--submit", action="store_true")
     p.add_argument("--server", default=os.getenv("ARGO_SERVER", DEFAULT_HOST))
-    p.add_argument("--verify-ssl", action="store_true")
-    p.add_argument("--no-host-check", action="store_true", help="Skip HTTP/HTTPS auto-detection")
+    p.add_argument("--verify-ssl", action="store_true", help="(ignored, HTTP only)")
+    p.add_argument("--no-host-check", action="store_true", help="(ignored, HTTP only)")
     args = p.parse_args()
 
     svc = make_service(args.server, args.verify_ssl, args.no_host_check)
     wf = build_wf(svc)
 
     if args.print_yaml:
-        # Prepend apiVersion for kubectl apply compatibility
         yaml_body = wf.to_yaml()
         if not yaml_body.startswith("apiVersion:"):
             yaml_body = "apiVersion: argoproj.io/v1alpha1\n" + yaml_body
@@ -118,9 +94,9 @@ def main():
     if args.submit:
         try:
             wf.create()
-            print(f"Submitted workflow. Host used: {svc.host}")
+            print(f"Submitted workflow over HTTP. Host used: {svc.host}")
         except Exception as e:
-            print("Submission failed: {}\nIf scheme mismatch, patch argo-server: \n  kubectl -n argo patch deploy argo-server --type='json' -p='[{\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/args/-\",\"value\":\"--secure=false\"}]'\nOr use --server https://<host>:<port>.".format(e))
+            print("Submission failed (HTTP mode): {}\nEnsure argo-server started with --secure=false and is reachable.".format(e))
     else:
         p.print_help()
 

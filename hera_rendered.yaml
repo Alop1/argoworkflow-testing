@@ -7,17 +7,19 @@ spec:
   entrypoint: main
   serviceAccountName: argo-workflow
   templates:
-  - name: gate
-    steps:
-    - - name: wait-for-approval
-        template: wait-for-approval
-    - - name: set-allow
-        template: set-allow
+  - name: step1
     outputs:
       parameters:
-      - name: allow
+      - name: message
         valueFrom:
-          parameter: '{{steps.set-allow.outputs.result}}'
+          path: /tmp/message.txt
+    script:
+      image: python:3.9
+      source: |-
+        print("Hello from step 1!")
+        with open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")
+      command:
+      - python
   - name: wait-for-approval
     outputs:
       parameters:
@@ -29,36 +31,17 @@ spec:
     inputs:
       parameters:
       - name: approved
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          path: /tmp/allow.txt
     script:
       image: python:3.9
       source: |-
-        import os
-        import sys
-        sys.path.append(os.getcwd())
-        import json
-        try: approved = json.loads(r'''{{inputs.parameters.approved}}''')
-        except: approved = r'''{{inputs.parameters.approved}}'''
-
-        return 'true' if approved == 'true' else 'false'
-      command:
-      - python
-  - name: main
-    steps:
-    - - name: produce-message
-        template: step1
-    - - name: check-message
-        template: gate
-    - - name: consume-message
-        template: step2
-        when: '{{steps.check-message.outputs.parameters.allow}} == true'
-  - name: step1
-    script:
-      image: python:3.9
-      source: |-
-        import os
-        import sys
-        sys.path.append(os.getcwd())
-        return 'Hello from step 1!'
+        approved = "{{inputs.parameters.approved}}"
+        allow = "true" if approved == "true" else "false"
+        with open("/tmp/allow.txt","w") as f: f.write(allow)
       command:
       - python
   - name: step2
@@ -68,16 +51,38 @@ spec:
     script:
       image: python:3.9
       source: |-
-        import os
-        import sys
-        sys.path.append(os.getcwd())
-        import json
-        try: message = json.loads(r'''{{inputs.parameters.message}}''')
-        except: message = r'''{{inputs.parameters.message}}'''
-
-        print('Step 2 received message:', message)
+        msg = "{{inputs.parameters.message}}"
+        print("Step 2 received message:", msg)
       command:
       - python
+  - name: gate
+    steps:
+    - - name: wait-for-approval
+        template: wait-for-approval
+    - - name: set-allow
+        template: set-allow
+        arguments:
+          parameters:
+          - name: approved
+            value: '{{steps.wait-for-approval.outputs.parameters.approved}}'
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          parameter: '{{steps.set-allow.outputs.parameters.allow}}'
+  - name: main
+    steps:
+    - - name: produce-message
+        template: step1
+    - - name: check-message
+        template: gate
+    - - name: consume-message
+        template: step2
+        when: '{{steps.check-message.outputs.parameters.allow}} == true'
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.parameters.message}}'
   ttlStrategy:
     secondsAfterCompletion: 3600
 
