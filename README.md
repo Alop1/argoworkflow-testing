@@ -5,7 +5,7 @@ This repository shows a minimal setup of Argo Workflows in a Kubernetes cluster 
 ## Contents
 - `infra/install.yaml` – argo "installation"
 - `infra/rbac.yaml` – service account + Role/RoleBinding (adds workflowtaskresults permissions)
-- `demo1.yaml` – simple multi-step workflow passing a parameter
+- `demo1.yaml` – simple multi-step workflow passing a parameter, example of  retry strategy, resource limitation
 - `human_in_loop.yaml` – workflow with a suspend (manual approval) gate
 - `create_human_in_loop_wf.py` – Python script creating WF via Argo SDK
 - `resume_workflow.py` – Argo SDK example for listing workflows, setting parameters, and resuming

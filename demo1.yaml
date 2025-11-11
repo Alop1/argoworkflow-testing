@@ -5,7 +5,6 @@ metadata:
   namespace: argo
   labels:
     app: string-passing
-  # RBAC updated to include patch/update verbs for workflowtaskresults
 spec:
   serviceAccountName: argo-workflow
   entrypoint: main
@@ -16,7 +15,7 @@ spec:
     steps:
     - - name: produce-message
         template: step1
-    - - name: check-message              # added gate step
+    - - name: check-message
         template: gate
         arguments:
           parameters:
@@ -24,12 +23,19 @@ spec:
             value: "{{steps.produce-message.outputs.parameters.message}}"
     - - name: consume-message
         template: step2
-        when: "{{steps.check-message.outputs.parameters.allow}} == true"  # conditional execution
+        when: "{{steps.check-message.outputs.parameters.allow}} == true"
         arguments:
           parameters:
           - name: message
             value: "{{steps.produce-message.outputs.parameters.message}}"
   - name: step1
+    retryStrategy:
+      limit: 3
+      retryPolicy: OnError
+      backoff:
+        duration: 3s
+        factor: 2
+        maxDuration: 30s
     script:
       image: python:3.9
       command: [python]
@@ -42,7 +48,7 @@ spec:
       - name: message
         valueFrom:
           path: /tmp/message.txt
-  - name: gate                            # added template
+  - name: gate
     inputs:
       parameters:
       - name: message
@@ -68,5 +74,12 @@ spec:
     script:
       image: python:3.9
       command: [python]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "250m"
+          memory: "128Mi"
       source: |
         print("Step 2 received message:", "{{inputs.parameters.message}}")
