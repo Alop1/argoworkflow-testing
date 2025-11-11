@@ -155,11 +155,14 @@ If pod GC deletes pods quickly, adjust `ttlStrategy` or remove aggressive `podGC
 - Volume handling (PVCs, volume affinity)
 - Extensibility (custom tasks/controllers)
 - Ecosystem: Argo Events, Argo CD, Argo Rollouts, Argo Artifacts
+- node selectors 
+- nodeStatusOffload
 
 ## Cons
 - Requires Kubernetes knowledge
 - Cluster resource overhead
 - Security considerations (RBAC, isolation)
+
 
 
 ## References
