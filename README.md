@@ -41,7 +41,7 @@ https://github.com/argoproj/argo-workflows/releases/
 ## Install Argo Workflows
 ```bash
 kubectl create namespace argo || true
-kubectl apply -n argo -f infra/install
+kubectl apply -n argo -f infra/install.yaml
 ```
 
 ### Apply RBAC (adds workflowtaskresults + pod log access)
@@ -155,7 +155,7 @@ If pod GC deletes pods quickly, adjust `ttlStrategy` or remove aggressive `podGC
 - Volume handling (PVCs, volume affinity)
 - Extensibility (custom tasks/controllers)
 - Ecosystem: Argo Events, Argo CD, Argo Rollouts, Argo Artifacts
-- node selectors 
+- node selectors - scheduling pod to selected node
 - nodeStatusOffload
 
 ## Cons
