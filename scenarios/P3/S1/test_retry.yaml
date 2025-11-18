@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: retry-script-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: safe-to-retry
+            template: safe-to-retry
+        - - name: retry
+            template: retry-script
+            arguments:
+              parameters:
+                - name: safe-to-retry
+                  value: "{{steps.safe-to-retry.outputs.result}}"
+
+    - name: safe-to-retry
+      script:
+        image: python:alpine3.6
+        command: ["python"]
+        # Produce a boolean string result instead of only exiting. Always 'true' here, adapt as needed.
+        source: |
+          # Decide if we allow retry. You could introduce logic here.
+          print("true", end="")
+
+    - name: retry-script
+      inputs:
+        parameters:
+          - name: safe-to-retry
+      retryStrategy:
+        limit: "10"
+        # Retry while previous attempt failed (exitCode != 0) AND gate parameter is 'true'
+        expression: >-
+          asInt(lastRetry.exitCode) != 0 && '{{inputs.parameters.safe-to-retry}}' == 'true'
+      script:
+        image: python:alpine3.6
+        command: ["python"]
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        # Exit randomly with code 1 or 2 to exercise the retry logic
+        source: |
+          import random, sys
+          exit_code = random.choice([0, 2])
+          print(f"Simulating failure with exit code {exit_code}")
+          sys.exit(exit_code)
