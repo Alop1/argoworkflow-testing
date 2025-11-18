@@ -8,7 +8,7 @@ DEFAULT_HOST = "http://localhost:2746"
 def build_wf(svc: WorkflowsService):
     # Build workflow and return workflow object directly
     with Workflow(
-        generate_name="conditional-step-",
+        generate_name="p1-long-running-wf-",
         entrypoint="main",
         namespace="argo",
         service_account_name="argo-workflow",
@@ -23,47 +23,83 @@ def build_wf(svc: WorkflowsService):
             source='''print("Hello from step 1!")\nwith open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")''',
             outputs=[Parameter(name="message", value_from={"path": "/tmp/message.txt"})],
         )
+
         # suspend template
         wait_for_approval = Suspend(
             name="wait-for-approval",
             outputs=[Parameter(name="approved", value_from={"supplied": {}})],
         )
+
         # set-allow script consumes approved param; writes allow value to file
         set_allow = Script(
             name="set-allow",
             image=IMAGE,
             command=["python"],
-            source='''approved = "{{inputs.parameters.approved}}"\nallow = "true" if approved == "true" else "false"\nwith open("/tmp/allow.txt","w") as f: f.write(allow)''',
+            source=(
+                'approved = "{{inputs.parameters.approved}}"\n'
+                'allow = "true" if approved == "true" else "false"\n'
+                'with open("/tmp/allow.txt","w") as f: f.write(allow)'
+            ),
             inputs=[Parameter(name="approved")],
             outputs=[Parameter(name="allow", value_from={"path": "/tmp/allow.txt"})],
         )
-        # step2 consumes message
-        step2 = Script(
-            name="step2",
+
+        # step2-approved consumes message when approved
+        step2_approved = Script(
+            name="step2-approved",
             image=IMAGE,
             command=["python"],
-            source='''msg = "{{inputs.parameters.message}}"\nprint("Step 2 received message:", msg)''',
+            source=(
+                'msg = "{{inputs.parameters.message}}"\n'
+                'print("Step 2 (APPROVED) received message:", msg)'
+            ),
             inputs=[Parameter(name="message")],
         )
+
+        # step2-rejected consumes message when rejected
+        step2_rejected = Script(
+            name="step2-rejected",
+            image=IMAGE,
+            command=["python"],
+            source=(
+                'msg = "{{inputs.parameters.message}}"\n'
+                'print("Step 2 (REJECTED) received message:", msg)'
+            ),
+            inputs=[Parameter(name="message")],
+        )
+
         # gate steps template replicating original, exposes allow param
         gate = Steps(name="gate")
         with gate:
             wait_for_approval()
             set_allow(arguments={"approved": "{{steps.wait-for-approval.outputs.parameters.approved}}"})
-        gate.outputs = [Parameter(name="allow", value_from={"parameter": "{{steps.set-allow.outputs.parameters.allow}}"})]
+        gate.outputs = [
+            Parameter(
+                name="allow",
+                value_from={"parameter": "{{steps.set-allow.outputs.parameters.allow}}"},
+            )
+        ]
 
         # main steps template
         main = Steps(name="main")
         with main:
             step1(name="produce-message")
             gate(name="check-message")
-            step2(
-                name="consume-message",
+
+            # Approved path
+            step2_approved(
+                name="consume-message-approved",
                 when="{{steps.check-message.outputs.parameters.allow}} == true",
                 arguments={"message": "{{steps.produce-message.outputs.parameters.message}}"},
             )
-    return wf
 
+            # Rejected path
+            step2_rejected(
+                name="consume-message-rejected",
+                when="{{steps.check-message.outputs.parameters.allow}} == false",
+                arguments={"message": "{{steps.produce-message.outputs.parameters.message}}"},
+            )
+    return wf
 
 
 def make_service(server: str | None) -> WorkflowsService:
@@ -91,11 +127,18 @@ def main():
     if args.submit:
         try:
             wf.create()
-            print(f"Submitted workflow over HTTP. Host used: {svc.host}")
+            print(f"Submitted workflow over HTTP. Host used: {svc.host}\n\n"
+                  f"{wf.name}")
+
+
         except Exception as e:
-            print("Submission failed (HTTP mode): {}\nEnsure argo-server started with --secure=false and is reachable.".format(e))
+            print(
+                "Submission failed (HTTP mode): {}\n"
+                "Ensure argo-server started with --secure=false and is reachable.".format(e)
+            )
     else:
         p.print_help()
+
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,106 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: p1-long-running-wf-
+  namespace: argo
+spec:
+  entrypoint: main
+  serviceAccountName: argo-workflow
+  templates:
+  - name: step1
+    outputs:
+      parameters:
+      - name: message
+        valueFrom:
+          path: /tmp/message.txt
+    script:
+      image: python:3.9
+      source: |-
+        print("Hello from step 1!")
+        with open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")
+      command:
+      - python
+  - name: wait-for-approval
+    outputs:
+      parameters:
+      - name: approved
+        valueFrom:
+          supplied: {}
+    suspend: {}
+  - name: set-allow
+    inputs:
+      parameters:
+      - name: approved
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          path: /tmp/allow.txt
+    script:
+      image: python:3.9
+      source: |-
+        approved = "{{inputs.parameters.approved}}"
+        allow = "true" if approved == "true" else "false"
+        with open("/tmp/allow.txt","w") as f: f.write(allow)
+      command:
+      - python
+  - name: step2-approved
+    inputs:
+      parameters:
+      - name: message
+    script:
+      image: python:3.9
+      source: |-
+        msg = "{{inputs.parameters.message}}"
+        print("Step 2 (APPROVED) received message:", msg)
+      command:
+      - python
+  - name: step2-rejected
+    inputs:
+      parameters:
+      - name: message
+    script:
+      image: python:3.9
+      source: |-
+        msg = "{{inputs.parameters.message}}"
+        print("Step 2 (REJECTED) received message:", msg)
+      command:
+      - python
+  - name: gate
+    steps:
+    - - name: wait-for-approval
+        template: wait-for-approval
+    - - name: set-allow
+        template: set-allow
+        arguments:
+          parameters:
+          - name: approved
+            value: '{{steps.wait-for-approval.outputs.parameters.approved}}'
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          parameter: '{{steps.set-allow.outputs.parameters.allow}}'
+  - name: main
+    steps:
+    - - name: produce-message
+        template: step1
+    - - name: check-message
+        template: gate
+    - - name: consume-message-approved
+        template: step2-approved
+        when: '{{steps.check-message.outputs.parameters.allow}} == true'
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.parameters.message}}'
+    - - name: consume-message-rejected
+        template: step2-rejected
+        when: '{{steps.check-message.outputs.parameters.allow}} == false'
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.parameters.message}}'
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+
