@@ -66,10 +66,9 @@ def build_wf(svc: WorkflowsService):
 
 
 
-def make_service(server: str | None, verify_ssl: bool, no_check: bool) -> WorkflowsService:
+def make_service(server: str | None) -> WorkflowsService:
     host = server or os.getenv("ARGO_SERVER") or DEFAULT_HOST
-    token = os.getenv("ARGO_TOKEN")
-    return WorkflowsService(host=host, token=token, verify_ssl=False)
+    return WorkflowsService(host=host, token=None, verify_ssl=False)
 
 
 def main():
@@ -77,11 +76,9 @@ def main():
     p.add_argument("--print-yaml", action="store_true")
     p.add_argument("--submit", action="store_true")
     p.add_argument("--server", default=os.getenv("ARGO_SERVER", DEFAULT_HOST))
-    p.add_argument("--verify-ssl", action="store_true", help="(ignored, HTTP only)")
-    p.add_argument("--no-host-check", action="store_true", help="(ignored, HTTP only)")
     args = p.parse_args()
 
-    svc = make_service(args.server, args.verify_ssl, args.no_host_check)
+    svc = make_service(args.server)
     wf = build_wf(svc)
 
     if args.print_yaml:
