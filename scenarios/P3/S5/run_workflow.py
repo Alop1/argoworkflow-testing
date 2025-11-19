@@ -17,7 +17,7 @@ DEFAULT_HOST = "http://localhost:2746"
 def build_wf(svc: WorkflowsService):
     # Build workflow and return workflow object directly
     with Workflow(
-        generate_name="p3-s1-retries-wf-",
+        generate_name="p3-s5-exhaust-retry-",
         entrypoint="main",
         namespace="argo",
         service_account_name="argo-workflow",
@@ -45,16 +45,13 @@ def build_wf(svc: WorkflowsService):
             # Deterministic retries: attempts 1-2 sleep 45s (timeout), attempt 3 sleeps 25s (success).
             source=(
                 'import sys, time\n'
-                'attempt = int("{{retries}}") + 1\n'
-                'sleep_secs = 45 if attempt < 3 else 10\n'
-                'print(f"Attempt {attempt}: sleeping {sleep_secs}s")\n'
-                'time.sleep(sleep_secs)\n'
+                'time.sleep(45)\n'
                 'print("Finished attempt", attempt)\n'
             ),
             inputs=[Parameter(name="message")],
             timeout='30s',
             retry_strategy=RetryStrategy(
-                limit=5,
+                limit=4,
                 expression= "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'",
                 # expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
                 backoff=m.Backoff(

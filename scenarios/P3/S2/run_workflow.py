@@ -31,9 +31,7 @@ def build_wf(svc: WorkflowsService):
             command=["python"],
             source=(
                 'print("Hello from step 1!")\n'
-                'with open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")'
             ),
-            outputs=[Parameter(name="message", value_from={"path": "/tmp/message.txt"})],
         )
 
 
@@ -43,7 +41,6 @@ def build_wf(svc: WorkflowsService):
             command=["python"],
             source=(
                 "import sys, time\n"
-                # retries = 0,1,2,3,... so attempt = 1,2,3,4,...
                 'attempt = int("{{retries}}") + 1\n'
                 'error_type = "NETWORK_ERROR" if attempt < 4 else "OK"\n'
                 'print(f"Attempt {attempt}: error_type={error_type}")\n'
@@ -53,13 +50,9 @@ def build_wf(svc: WorkflowsService):
                 "    sys.exit(100)  # 100 = NETWORK_ERROR\n"
                 "print('Success on attempt', attempt)\n"
             ),
-            inputs=[Parameter(name="message")],
             retry_strategy=RetryStrategy(
                 limit=4,
-                # 1) retry condition: only when error_type == NETWORK_ERROR
-                #    coded as exitCode 100
                 expression="asInt(lastRetry.exitCode) == 100",
-                #    Argo waits: 1s, 2s, 4s... before retries; first attempt is "0s".
                 backoff=m.Backoff(
                     duration="1s",
                     factor="2",
@@ -70,10 +63,7 @@ def build_wf(svc: WorkflowsService):
         main = Steps(name="main")
         with main:
             step1(name="produce-message")
-            step2(
-                name="consume-message",
-                arguments={"message": "{{steps.produce-message.outputs.parameters.message}}"},
-            )
+            step2( name="consume-message")
     return wf
 
 

@@ -19,6 +19,7 @@ Example:
 
     parser.add_argument(
         "--server",
+        required=False,
         default="http://localhost:2746",
         help="Argo server URL (e.g., http://localhost:2746)"
     )

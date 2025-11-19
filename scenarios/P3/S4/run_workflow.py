@@ -13,20 +13,17 @@ IMAGE = "python:3.9"
 DEFAULT_HOST = "http://localhost:2746"
 
 
-
 def build_wf(svc: WorkflowsService):
-    # Build workflow and return workflow object directly
     with Workflow(
-        generate_name="p3-s1-retries-wf-",
+        generate_name="p3-s4-different-retries-and-failed-wf-",
         entrypoint="main",
         namespace="argo",
         service_account_name="argo-workflow",
         ttl_strategy={"secondsAfterCompletion": 3600},
         workflows_service=svc,
-        # Instant shutdown (no graceful period) for all pods:
-        pod_spec_patch='{"terminationGracePeriodSeconds":0}'
+        pod_spec_patch='{"terminationGracePeriodSeconds":0}',
     ) as wf:
-        # step1 writes message to file
+
         step1 = Script(
             name="step1",
             image=IMAGE,
@@ -42,37 +39,66 @@ def build_wf(svc: WorkflowsService):
             name="step2",
             image=IMAGE,
             command=["python"],
-            # Deterministic retries: attempts 1-2 sleep 45s (timeout), attempt 3 sleeps 25s (success).
+            # TODO clean belo script to make it more readable
             source=(
-                'import sys, time\n'
-                'attempt = int("{{retries}}") + 1\n'
-                'sleep_secs = 45 if attempt < 3 else 10\n'
-                'print(f"Attempt {attempt}: sleeping {sleep_secs}s")\n'
-                'time.sleep(sleep_secs)\n'
-                'print("Finished attempt", attempt)\n'
+                "import sys, time, pathlib\n"
+                'attempt = int(\"{{retries}}\") + 1\n'
+                "error_type = \"OK\"\n"
+                "status_code = 0\n"
+                "\n"
+                "# --- SLEEP tylko przy pierwszym retry ---\n"
+                "if attempt == 1:\n"
+                "    sleep_secs = 45\n"
+                "    error_type = 'TIMEOUT'\n"
+                "elif attempt == 2:\n"
+                "    sleep_secs = 0\n"
+                "    error_type = 'NETWORK_ERROR'\n"
+                "elif attempt == 3:\n"
+                "    sleep_secs = 0\n"
+                "    error_type = 'HTTP_ERROR'\n"
+                "    status_code = 503\n"
+                "else:\n"
+                "    sleep_secs = 0\n"
+                "    error_type = 'VALIDATION_ERROR'\n"
+                "    status_code = 400\n"
+                "\n"
+                "print(f'Attempt {attempt}: sleep={sleep_secs}s, error_type={error_type}, status_code={status_code}')\n"
+                "\n"
+                "if sleep_secs > 0:\n"
+                "    time.sleep(sleep_secs)\n"
+                "\n"
+                "\n"
+                "if error_type == 'NETWORK_ERROR':\n"
+                "    sys.exit(100)\n"
+                "elif status_code == 503:\n"
+                "    sys.exit(150)\n"
+                "elif error_type == 'VALIDATION_ERROR':\n"
+                "    sys.exit(200)\n"
+                "sys.exit(0)\n"
             ),
             inputs=[Parameter(name="message")],
-            timeout='30s',
+            timeout="10s",
             retry_strategy=RetryStrategy(
                 limit=5,
-                expression= "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'",
-                # expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
-                backoff=m.Backoff(
-                    duration= "1s",
-                    factor= "2",
-
+                expression=(
+                    "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'"
+                    " || asInt(lastRetry.exitCode) == 100"
+                    " || asInt(lastRetry.exitCode) == 150"
                 ),
-            ),
+                backoff=m.Backoff(duration='1s', factor='2'),
+            )
         )
 
-        # main steps template
         main = Steps(name="main")
         with main:
             step1(name="produce-message")
             step2(
                 name="consume-message",
-                arguments={"message": "{{steps.produce-message.outputs.parameters.message}}"},
+                arguments={
+                    "message": "{{steps.produce-message.outputs.parameters.message}}"
+                },
             )
+
     return wf
 
 
