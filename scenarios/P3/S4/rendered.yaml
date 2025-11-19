@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: p3-s4-different-retries-and-failed-wf-
+  namespace: argo
+spec:
+  entrypoint: main
+  podSpecPatch: '{"terminationGracePeriodSeconds":0}'
+  serviceAccountName: argo-workflow
+  templates:
+  - name: step1
+    outputs:
+      parameters:
+      - name: message
+        valueFrom:
+          path: /tmp/message.txt
+    script:
+      image: python:3.9
+      source: |-
+        print("Hello from step 1!")
+        with open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")
+      command:
+      - python
+  - name: step2
+    timeout: 10s
+    inputs:
+      parameters:
+      - name: message
+    retryStrategy:
+      expression: lastRetry.message matches 'Pod was active on the node longer than
+        the specified deadline' || asInt(lastRetry.exitCode) == 100 || asInt(lastRetry.exitCode)
+        == 150
+      limit: 5
+      backoff:
+        duration: 1s
+        factor: '2'
+    script:
+      image: python:3.9
+      source: |
+        import sys, time, pathlib
+        attempt = int("{{retries}}") + 1
+        error_type = "OK"
+        status_code = 0
+
+        # --- SLEEP tylko przy pierwszym retry ---
+        if attempt == 1:
+            sleep_secs = 45
+            error_type = 'TIMEOUT'
+        elif attempt == 2:
+            sleep_secs = 0
+            error_type = 'NETWORK_ERROR'
+        elif attempt == 3:
+            sleep_secs = 0
+            error_type = 'HTTP_ERROR'
+            status_code = 503
+        else:
+            sleep_secs = 0
+            error_type = 'VALIDATION_ERROR'
+            status_code = 400
+
+        print(f'Attempt {attempt}: sleep={sleep_secs}s, error_type={error_type}, status_code={status_code}')
+
+        if sleep_secs > 0:
+            time.sleep(sleep_secs)
+
+
+        if error_type == 'NETWORK_ERROR':
+            sys.exit(100)
+        elif status_code == 503:
+            sys.exit(150)
+        elif error_type == 'VALIDATION_ERROR':
+            sys.exit(200)
+        sys.exit(0)
+      command:
+      - python
+  - name: main
+    steps:
+    - - name: produce-message
+        template: step1
+    - - name: consume-message
+        template: step2
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.parameters.message}}'
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+

@@ -1,0 +1,114 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: p1-long-running-wf-
+  namespace: argo
+spec:
+  entrypoint: main
+  serviceAccountName: argo-workflow
+  templates:
+  - name: wait-for-approval
+    outputs:
+      parameters:
+      - name: approved
+        valueFrom:
+          supplied: {}
+    suspend: {}
+  - name: main
+    steps:
+    - - name: produce-message
+        template: step1
+    - - name: wait-for-approval
+        template: wait-for-approval
+    - - name: set-allow
+        template: set-allow
+        arguments:
+          parameters:
+          - name: approved
+            value: '{{steps.wait-for-approval.outputs.parameters.approved}}'
+    - - name: consume-message-approved
+        template: step2-approved
+        when: '{{steps.set-allow.outputs.parameters.allow}} == true'
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.result}}'
+    - - name: consume-message-rejected
+        template: step2-rejected
+        when: '{{steps.set-allow.outputs.parameters.allow}} == false'
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.result}}'
+  - name: step1
+    script:
+      image: python:3.9
+      source: |-
+        import os
+        import sys
+        sys.path.append(os.getcwd())
+        print('Hello from step 1!')
+      command:
+      - python
+  - name: set-allow
+    inputs:
+      parameters:
+      - name: approved
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          path: /tmp/allow.txt
+    script:
+      image: python:3.9
+      source: |-
+        import os
+        import sys
+        sys.path.append(os.getcwd())
+        import json
+        try: approved = json.loads(r'''{{inputs.parameters.approved}}''')
+        except: approved = r'''{{inputs.parameters.approved}}'''
+
+        allow = 'true' if approved == 'true' else 'false'
+        print(f'set-allow: approved={approved} -> allow={allow}')
+        with open('/tmp/allow.txt', 'w') as f:
+            f.write(allow)
+      command:
+      - python
+  - name: step2-approved
+    inputs:
+      parameters:
+      - name: message
+    script:
+      image: python:3.9
+      source: |-
+        import os
+        import sys
+        sys.path.append(os.getcwd())
+        import json
+        try: message = json.loads(r'''{{inputs.parameters.message}}''')
+        except: message = r'''{{inputs.parameters.message}}'''
+
+        print('Step 2 (APPROVED) received message:', message)
+      command:
+      - python
+  - name: step2-rejected
+    inputs:
+      parameters:
+      - name: message
+    script:
+      image: python:3.9
+      source: |-
+        import os
+        import sys
+        sys.path.append(os.getcwd())
+        import json
+        try: message = json.loads(r'''{{inputs.parameters.message}}''')
+        except: message = r'''{{inputs.parameters.message}}'''
+
+        print('Step 2 (REJECTED) received message:', message)
+      command:
+      - python
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+
