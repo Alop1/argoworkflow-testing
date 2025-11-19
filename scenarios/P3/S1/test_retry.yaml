@@ -33,7 +33,7 @@ spec:
         limit: "10"
         # Retry while previous attempt failed (exitCode != 0) AND gate parameter is 'true'
         expression: >-
-          asInt(lastRetry.exitCode) != 0 && '{{inputs.parameters.safe-to-retry}}' == 'true'
+          asInt(lastRetry.exitCode) != 0
       script:
         image: python:alpine3.6
         command: ["python"]

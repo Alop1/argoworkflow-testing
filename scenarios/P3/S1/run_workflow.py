@@ -55,14 +55,15 @@ def build_wf(svc: WorkflowsService):
             inputs=[Parameter(name="message")],
             timeout='5s',
             retry_strategy=RetryStrategy(
-                limit=RETRY_LIMIT,
-                expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
-                # backoff=m.Backoff(
-                #     duration="3s",   # first retry: 0s delay     # linear, not exponential
-                #     max_duration="2s",
-                    # with factor=1 and max_duration=2s Argo will do:
-                    # 0s (first retry), 1s (second), 2s (third) – effectively 0,1,2
-                # ),
+                limit=10,
+                # expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
+                expression= "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'",
+                backoff=m.Backoff(
+                    duration= "1",  # Must be a string. Default unit is seconds. Could also be a Duration, e.g.: "2m", "6h"
+                    factor= "2",
+                    max_duration= "1m",  # Must be a string. Default unit is seconds. Could also be a Duration, e.g.: "2m", "6h"
+
+                ),
             ),
         )
 
