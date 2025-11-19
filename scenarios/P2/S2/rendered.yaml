@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: p2-crach-recovery-wf-
+  namespace: argo
+spec:
+  entrypoint: main
+  serviceAccountName: argo-workflow
+  templates:
+  - name: main
+    steps:
+    - - name: step-1
+        template: step1
+    - - name: step-2
+        template: step2
+    - - name: step-3
+        template: step3
+  - name: step1
+    script:
+      image: python:3.9
+      source: |-
+        import os
+        import sys
+        sys.path.append(os.getcwd())
+        import time
+        print('Hello from step 1!')
+        time.sleep(1)
+      command:
+      - python
+  - name: step2
+    script:
+      image: python:3.9
+      source: |-
+        import os
+        import sys
+        sys.path.append(os.getcwd())
+        import time
+        print('Hello from step 2!')
+        time.sleep(1)
+      command:
+      - python
+  - name: step3
+    script:
+      image: python:3.9
+      source: |-
+        import os
+        import sys
+        sys.path.append(os.getcwd())
+        import time
+        print('Hello from step 3!')
+        time.sleep(2000)
+      command:
+      - python
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+

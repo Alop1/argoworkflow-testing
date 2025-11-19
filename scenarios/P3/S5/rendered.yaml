@@ -22,12 +22,24 @@ spec:
         template: wait-for-approval
     - - name: set-allow
         template: set-allow
+        arguments:
+          parameters:
+          - name: approved
+            value: '{{steps.wait-for-approval.outputs.parameters.approved}}'
     - - name: consume-message-approved
         template: step2-approved
-        when: '{{steps.set-allow.outputs.result}} == ''true'''
+        when: '{{steps.set-allow.outputs.parameters.allow}} == true'
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.result}}'
     - - name: consume-message-rejected
         template: step2-rejected
-        when: '{{steps.set-allow.outputs.result}} == ''false'''
+        when: '{{steps.set-allow.outputs.parameters.allow}} == false'
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.result}}'
   - name: step1
     script:
       image: python:3.9
@@ -35,16 +47,18 @@ spec:
         import os
         import sys
         sys.path.append(os.getcwd())
-        """Produce a message."""
         print('Hello from step 1!')
-        msg = 'Hello from step 1!'
-        return msg
       command:
       - python
   - name: set-allow
     inputs:
       parameters:
       - name: approved
+    outputs:
+      parameters:
+      - name: allow
+        valueFrom:
+          path: /tmp/allow.txt
     script:
       image: python:3.9
       source: |-
@@ -55,10 +69,10 @@ spec:
         try: approved = json.loads(r'''{{inputs.parameters.approved}}''')
         except: approved = r'''{{inputs.parameters.approved}}'''
 
-        """Turn approved flag into allow=true/false."""
         allow = 'true' if approved == 'true' else 'false'
-        print(f'set_allow: approved={approved} -> allow={allow}')
-        return allow
+        print(f'set-allow: approved={approved} -> allow={allow}')
+        with open('/tmp/allow.txt', 'w') as f:
+            f.write(allow)
       command:
       - python
   - name: step2-approved
