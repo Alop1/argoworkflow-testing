@@ -1,39 +1,69 @@
 import argparse, os, requests
-from hera.workflows import Workflow, Steps, Suspend, Parameter, WorkflowsService, Script
+from hera.workflows import (
+    Workflow,
+    Steps,
+    Parameter,
+    WorkflowsService,
+    Script,
+    RetryStrategy,
+)
+from hera.workflows import models as m  # for Backoff
 
 IMAGE = "python:3.9"
 DEFAULT_HOST = "http://localhost:2746"
+
+PROCESSING_TIMEOUT = "30s"  # 1) processing_timeout=30s
+RETRY_LIMIT = 10             # 3 attempts total
 
 
 def build_wf(svc: WorkflowsService):
     # Build workflow and return workflow object directly
     with Workflow(
-        generate_name="p1-long-running-wf-",
+        generate_name="p3-s1-retries-wf-",
         entrypoint="main",
         namespace="argo",
         service_account_name="argo-workflow",
         ttl_strategy={"secondsAfterCompletion": 3600},
         workflows_service=svc,
     ) as wf:
-        # step1 writes message to file like original YAML
+        # step1 writes message to file
         step1 = Script(
             name="step1",
             image=IMAGE,
             command=["python"],
-            source='''print("Hello from step 1!")\nwith open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")''',
+            source=(
+                'print("Hello from step 1!")\n'
+                'with open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")'
+            ),
             outputs=[Parameter(name="message", value_from={"path": "/tmp/message.txt"})],
         )
 
-        # step2-approved consumes message when approved
+        # step2: this is the step under test (with timeout + retries)
+        # In a real test, your code here would run ~45s twice (timing out),
+        # then ~25s (succeeds under the 30s timeout).
         step2 = Script(
-            name="step2-approved",
+            name="step2",
             image=IMAGE,
             command=["python"],
             source=(
-                'msg = "{{inputs.parameters.message}}"\n'
-                'print("Step 2 (APPROVED) received message:", msg)'
+                'import random, sys, time\n'
+                'time.sleep(45)  # simulate long processing that may time out\n'
+                'exit_code = random.choice([0, 2])\n'
+                'print(f"Simulating failure with exit code {exit_code}")\n'
+                'sys.exit(exit_code)'
             ),
             inputs=[Parameter(name="message")],
+            timeout='5s',
+            retry_strategy=RetryStrategy(
+                limit=RETRY_LIMIT,
+                expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
+                # backoff=m.Backoff(
+                #     duration="3s",   # first retry: 0s delay     # linear, not exponential
+                #     max_duration="2s",
+                    # with factor=1 and max_duration=2s Argo will do:
+                    # 0s (first retry), 1s (second), 2s (third) – effectively 0,1,2
+                # ),
+            ),
         )
 
         # main steps template
@@ -41,9 +71,10 @@ def build_wf(svc: WorkflowsService):
         with main:
             step1(name="produce-message")
             step2(
-                name="consume-message-approved",
+                name="consume-message",
                 arguments={"message": "{{steps.produce-message.outputs.parameters.message}}"},
             )
+
 
 
     return wf
@@ -74,14 +105,16 @@ def main():
     if args.submit:
         try:
             wf.create()
-            print(f"Submitted workflow over HTTP. Host used: {svc.host}\n\n"
-                  f"{wf.name}")
-
-
+            print(
+                f"Submitted workflow over HTTP. Host used: {svc.host}\n\n"
+                f"{wf.name}"
+            )
         except Exception as e:
             print(
                 "Submission failed (HTTP mode): {}\n"
-                "Ensure argo-server started with --secure=false and is reachable.".format(e)
+                "Ensure argo-server started with --secure=false and is reachable.".format(
+                    e
+                )
             )
     else:
         p.print_help()
