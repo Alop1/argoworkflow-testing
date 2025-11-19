@@ -1,4 +1,4 @@
-import argparse, os, requests
+import argparse, os
 from hera.workflows import (
     Workflow,
     Steps,
@@ -13,7 +13,6 @@ IMAGE = "python:3.9"
 DEFAULT_HOST = "http://localhost:2746"
 
 
-
 def build_wf(svc: WorkflowsService):
     # Build workflow and return workflow object directly
     with Workflow(
@@ -24,9 +23,8 @@ def build_wf(svc: WorkflowsService):
         ttl_strategy={"secondsAfterCompletion": 3600},
         workflows_service=svc,
         # Instant shutdown (no graceful period) for all pods:
-        pod_spec_patch='{"terminationGracePeriodSeconds":0}'
+        pod_spec_patch='{"terminationGracePeriodSeconds":0}',
     ) as wf:
-        # step1 writes message to file
         step1 = Script(
             name="step1",
             image=IMAGE,
@@ -38,35 +36,37 @@ def build_wf(svc: WorkflowsService):
             outputs=[Parameter(name="message", value_from={"path": "/tmp/message.txt"})],
         )
 
+
         step2 = Script(
             name="step2",
             image=IMAGE,
             command=["python"],
-            # Deterministic retries: attempts 1-2 sleep 45s (timeout), attempt 3 sleeps 25s (success).
             source=(
-                'import sys, time\n'
+                "import sys, time\n"
+                # retries = 0,1,2,3,... so attempt = 1,2,3,4,...
                 'attempt = int("{{retries}}") + 1\n'
-                'sleep_secs = 45 if attempt < 3 else 10\n'
-                'print(f"Attempt {attempt}: sleeping {sleep_secs}s")\n'
-                'time.sleep(sleep_secs)\n'
-                'print("Finished attempt", attempt)\n'
+                'error_type = "NETWORK_ERROR" if attempt < 4 else "OK"\n'
+                'print(f"Attempt {attempt}: error_type={error_type}")\n'
+                "time.sleep(5)  # some processing, stays well under 60s timeout\n"
+                "if error_type == 'NETWORK_ERROR':\n"
+                "    print('Simulating NETWORK_ERROR')\n"
+                "    sys.exit(100)  # 100 = NETWORK_ERROR\n"
+                "print('Success on attempt', attempt)\n"
             ),
             inputs=[Parameter(name="message")],
-            timeout='30s',
             retry_strategy=RetryStrategy(
-                limit=5,
-                expression= "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'",
-                # expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
-                # jeszcze trzecia opcja opierajaca sie na activeDeadlineSeconds
+                limit=4,
+                # 1) retry condition: only when error_type == NETWORK_ERROR
+                #    coded as exitCode 100
+                expression="asInt(lastRetry.exitCode) == 100",
+                #    Argo waits: 1s, 2s, 4s... before retries; first attempt is "0s".
                 backoff=m.Backoff(
-                    duration= "1s",
-                    factor= "2",
-
+                    duration="1s",
+                    factor="2",
                 ),
             ),
         )
 
-        # main steps template
         main = Steps(name="main")
         with main:
             step1(name="produce-message")

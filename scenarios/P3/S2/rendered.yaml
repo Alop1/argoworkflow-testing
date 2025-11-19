@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: p3-s1-retries-wf-
+  namespace: argo
+spec:
+  entrypoint: main
+  podSpecPatch: '{"terminationGracePeriodSeconds":0}'
+  serviceAccountName: argo-workflow
+  templates:
+  - name: step1
+    outputs:
+      parameters:
+      - name: message
+        valueFrom:
+          path: /tmp/message.txt
+    script:
+      image: python:3.9
+      source: |-
+        print("Hello from step 1!")
+        with open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")
+      command:
+      - python
+  - name: step2
+    inputs:
+      parameters:
+      - name: message
+    retryStrategy:
+      expression: asInt(lastRetry.exitCode) == 100
+      limit: 4
+      backoff:
+        duration: 1s
+        factor: '2'
+    script:
+      image: python:3.9
+      source: |
+        import sys, time
+        attempt = int("{{retries}}") + 1
+        error_type = "NETWORK_ERROR" if attempt < 4 else "OK"
+        print(f"Attempt {attempt}: error_type={error_type}")
+        time.sleep(5)  # some processing, stays well under 60s timeout
+        if error_type == 'NETWORK_ERROR':
+            print('Simulating NETWORK_ERROR')
+            sys.exit(100)  # 100 = NETWORK_ERROR
+        print('Success on attempt', attempt)
+      command:
+      - python
+  - name: main
+    steps:
+    - - name: produce-message
+        template: step1
+    - - name: consume-message
+        template: step2
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.parameters.message}}'
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+
