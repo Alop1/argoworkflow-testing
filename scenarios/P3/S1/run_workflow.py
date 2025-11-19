@@ -12,8 +12,6 @@ from hera.workflows import models as m  # for Backoff
 IMAGE = "python:3.9"
 DEFAULT_HOST = "http://localhost:2746"
 
-PROCESSING_TIMEOUT = "30s"  # 1) processing_timeout=30s
-RETRY_LIMIT = 10             # 3 attempts total
 
 
 def build_wf(svc: WorkflowsService):
@@ -25,6 +23,8 @@ def build_wf(svc: WorkflowsService):
         service_account_name="argo-workflow",
         ttl_strategy={"secondsAfterCompletion": 3600},
         workflows_service=svc,
+        # Instant shutdown (no graceful period) for all pods:
+        pod_spec_patch='{"terminationGracePeriodSeconds":0}'
     ) as wf:
         # step1 writes message to file
         step1 = Script(
@@ -38,30 +38,29 @@ def build_wf(svc: WorkflowsService):
             outputs=[Parameter(name="message", value_from={"path": "/tmp/message.txt"})],
         )
 
-        # step2: this is the step under test (with timeout + retries)
-        # In a real test, your code here would run ~45s twice (timing out),
-        # then ~25s (succeeds under the 30s timeout).
         step2 = Script(
             name="step2",
             image=IMAGE,
             command=["python"],
+            # Deterministic retries: attempts 1-2 sleep 45s (timeout), attempt 3 sleeps 25s (success).
             source=(
-                'import random, sys, time\n'
-                'time.sleep(45)  # simulate long processing that may time out\n'
-                'exit_code = random.choice([0, 2])\n'
-                'print(f"Simulating failure with exit code {exit_code}")\n'
-                'sys.exit(exit_code)'
+                'import sys, time\n'
+                'attempt = int("{{retries}}") + 1\n'
+                'sleep_secs = 45 if attempt < 3 else 10\n'
+                'print(f"Attempt {attempt}: sleeping {sleep_secs}s")\n'
+                'time.sleep(sleep_secs)\n'
+                'print("Finished attempt", attempt)\n'
             ),
             inputs=[Parameter(name="message")],
-            timeout='5s',
+            timeout='30s',
             retry_strategy=RetryStrategy(
-                limit=10,
-                # expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
+                limit=5,
                 expression= "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'",
+                # expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
+                # jeszcze trzecia opcja opierajaca sie na activeDeadlineSeconds
                 backoff=m.Backoff(
-                    duration= "1",  # Must be a string. Default unit is seconds. Could also be a Duration, e.g.: "2m", "6h"
+                    duration= "1s",
                     factor= "2",
-                    max_duration= "1m",  # Must be a string. Default unit is seconds. Could also be a Duration, e.g.: "2m", "6h"
 
                 ),
             ),
@@ -111,12 +110,7 @@ def main():
                 f"{wf.name}"
             )
         except Exception as e:
-            print(
-                "Submission failed (HTTP mode): {}\n"
-                "Ensure argo-server started with --secure=false and is reachable.".format(
-                    e
-                )
-            )
+            print("Submission failed (HTTP mode): {}\n".format(e))
     else:
         p.print_help()
 

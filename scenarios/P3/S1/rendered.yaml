@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: p3-s1-retries-wf-
+  namespace: argo
+spec:
+  entrypoint: main
+  podSpecPatch: '{"terminationGracePeriodSeconds":0}'
+  serviceAccountName: argo-workflow
+  templates:
+  - name: step1
+    outputs:
+      parameters:
+      - name: message
+        valueFrom:
+          path: /tmp/message.txt
+    script:
+      image: python:3.9
+      source: |-
+        print("Hello from step 1!")
+        with open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")
+      command:
+      - python
+  - name: step2
+    timeout: 30s
+    inputs:
+      parameters:
+      - name: message
+    retryStrategy:
+      expression: lastRetry.message matches 'Pod was active on the node longer than
+        the specified deadline'
+      limit: 5
+      backoff:
+        duration: '1'
+        factor: '2'
+    script:
+      image: python:3.9
+      source: |
+        import sys, time
+        attempt = int("{{retries}}") + 1
+        sleep_secs = 45 if attempt < 3 else 10
+        print(f"Attempt {attempt}: sleeping {sleep_secs}s")
+        time.sleep(sleep_secs)
+        print("Finished attempt", attempt)
+      command:
+      - python
+  - name: main
+    steps:
+    - - name: produce-message
+        template: step1
+    - - name: consume-message
+        template: step2
+        arguments:
+          parameters:
+          - name: message
+            value: '{{steps.produce-message.outputs.parameters.message}}'
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+
