@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: p3-s1-retries-wf-
+  namespace: argo
+spec:
+  entrypoint: main
+  podSpecPatch: '{"terminationGracePeriodSeconds":0}'
+  serviceAccountName: argo-workflow
+  templates:
+  - name: step1
+    script:
+      image: python:3.9
+      source: |
+        print("Hello from step 1!")
+      command:
+      - python
+  - name: step2
+    timeout: 60s
+    retryStrategy:
+      expression: asInt(lastRetry.exitCode) == 100
+      limit: 4
+      backoff:
+        duration: 1s
+        factor: '2'
+    script:
+      image: python:3.9
+      source: |
+        import sys, time
+        attempt = int("{{retries}}") + 1
+        error_type = "VALIDATION_ERROR"
+        print(f"Attempt {attempt}: error_type={error_type}")
+        time.sleep(5)  # stays well under 60s timeout
+        print('Simulating VALIDATION_ERROR')
+        sys.exit(200)  # 200 = VALIDATION_ERROR
+      command:
+      - python
+  - name: main
+    steps:
+    - - name: step1
+        template: step1
+    - - name: step2
+        template: step2
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+
