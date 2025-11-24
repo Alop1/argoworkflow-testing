@@ -28,6 +28,8 @@ spec:
       command:
       - python
   - name: step2
+    retryStrategy:
+      limit: 3
     script:
       image: python:3.9
       source: |-
@@ -36,6 +38,7 @@ spec:
         sys.path.append(os.getcwd())
         import time
         print('Hello from step 2!')
+        time.sleep(2000)
         time.sleep(1)
       command:
       - python

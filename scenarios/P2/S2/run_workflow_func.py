@@ -6,7 +6,7 @@ from hera.workflows import (
     Parameter,
     WorkflowsService,
     Script,
-    script,
+    script, RetryStrategy, RetryPolicy,
 )
 from hera.workflows.models import ValueFrom, TTLStrategy
 
@@ -23,11 +23,11 @@ def step1() -> str:
     time.sleep(1)
 
 
-@script()
+@script(retry_strategy=RetryStrategy(limit=3, retry_policy=RetryPolicy.always))
 def step2() -> str:
     import time
     print("Hello from step 2!")
-    # time.sleep(2000)
+    time.sleep(2000)
     time.sleep(1)
 
 
