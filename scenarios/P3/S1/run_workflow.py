@@ -46,16 +46,22 @@ def build_wf(svc: WorkflowsService):
             source=(
                 'import sys, time\n'
                 'attempt = int("{{retries}}") + 1\n'
-                'sleep_secs = 45 if attempt < 3 else 10\n'
+                'sleep_secs = 90 if attempt < 3 else 10\n'
                 'print(f"Attempt {attempt}: sleeping {sleep_secs}s")\n'
                 'time.sleep(sleep_secs)\n'
                 'print("Finished attempt", attempt)\n'
             ),
             inputs=[Parameter(name="message")],
-            timeout='30s',
+            timeout='100s',
             retry_strategy=RetryStrategy(
                 limit=5,
-                expression= "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'",
+                retry_policy="Always",
+                expression=(
+                    "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'"
+                    " || "
+                    "lastRetry.message matches 'pod deleted'"
+                ),
+                # expression= "lastRetry.message matches 'Pod was active on the node longer than the specified deadline'",
                 # expression='(lastRetry.exitCode != 0) || (lastRetry.duration >= 5)',
                 backoff=m.Backoff(
                     duration= "1s",

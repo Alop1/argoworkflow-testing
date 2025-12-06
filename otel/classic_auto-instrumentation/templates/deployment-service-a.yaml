@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.serviceA.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.serviceA.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.serviceA.name }}
+    spec:
+      containers:
+        - name: {{ .Values.serviceA.name }}
+          image: {{ .Values.serviceA.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: SERVICE_NAME
+              value: {{ .Values.serviceA.name | quote }}
+            - name: SERVICE_B_URL
+              value: {{ printf "http://%s:%v/process" .Values.serviceB.name .Values.serviceB.port | quote }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.otel.tracesEndpoint | quote }}
+          command: ["python"]
+          args: ["/app/app.py"]
+          ports:
+            - containerPort: {{ .Values.serviceA.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.serviceA.name }}
+spec:
+  selector:
+    app: {{ .Values.serviceA.name }}
+  ports:
+    - name: http
+      port: {{ .Values.serviceA.port }}
+      targetPort: {{ .Values.serviceA.port }}
+  type: ClusterIP

@@ -1,0 +1,120 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  labels:
+    grafana_datasource: "1"
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        access: proxy
+        isDefault: true
+        url: http://{{ .Values.loki.name }}:{{ .Values.loki.port }}
+        jsonData:
+          maxLines: 1000
+
+      - name: VictoriaMetrics
+        type: prometheus
+        access: proxy
+        url: http://{{ .Values.victoriaMetrics.name }}:{{ .Values.victoriaMetrics.port }}
+        jsonData:
+          httpMethod: GET
+
+      - name: Jaeger
+        type: jaeger
+        access: proxy
+        url: http://{{ .Values.jaeger.name }}:{{ .Values.jaeger.uiPort }}
+        jsonData:
+          tracesToLogs:
+            datasourceUid: loki
+            tags: ["trace_id", "service.name"]
+            mappedTags: []
+            spanStartTimeShift: "1h"
+            spanEndTimeShift: "1h"
+            filterByTraceID: true
+            filterBySpanID: false
+          nodeGraph:
+            enabled: true
+          spanBar:
+            type: "Duration"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  labels:
+    grafana_dashboard: "1"
+data:
+  otel-demo.json: |
+    {
+      "id": null,
+      "uid": "otel-demo",
+      "title": "OTel Demo - A/B/C + Collector",
+      "tags": ["otel", "demo"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Odebrane spany (otel-collector)",
+          "gridPos": { "x": 0, "y": 0, "w": 8, "h": 4 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+              "expr": "sum(rate(otelcol_receiver_accepted_spans[5m]))",
+              "legendFormat": "accepted_spans",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "type": "logs",
+          "title": "Logi serwisów A/B/C",
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 9 },
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "showCommonLabels": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "expr": "{namespace=\"{{ .Release.Namespace }}\"}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Trace'y (przez Jaegera)",
+          "gridPos": { "x": 8, "y": 0, "w": 16, "h": 4 },
+          "pluginVersion": "11.0.0",
+          "targets": [
+            {
+              "datasource": { "type": "jaeger", "uid": "Jaeger" },
+              "queryType": "traceSearch",
+              "service": "",
+              "operation": "",
+              "minDuration": "",
+              "maxDuration": "",
+              "tags": "",
+              "limit": 20,
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "showHeader": true
+          }
+        }
+      ]
+    }
+{{- end }}

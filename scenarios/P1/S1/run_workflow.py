@@ -41,7 +41,7 @@ def build_wf(svc: WorkflowsService):
                 'with open("/tmp/allow.txt","w") as f: f.write(allow)'
             ),
             inputs=[Parameter(name="approved")],
-            outputs=[Parameter(name="allow", value_from={"path": "/tmp/allow.txt"})],
+            outputs=[Parameter(name="message", value_from={"path": "/tmp/allow.txt"})],
         )
 
         # step2-approved consumes message when approved

@@ -1,0 +1,46 @@
+{{- if .Values.victoriaMetrics.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.victoriaMetrics.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.victoriaMetrics.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.victoriaMetrics.name }}
+    spec:
+      containers:
+        - name: victoria-metrics
+          image: {{ .Values.victoriaMetrics.image }}
+          imagePullPolicy: {{ .Values.victoriaMetrics.pullPolicy }}
+          args:
+            - "-retentionPeriod={{ .Values.victoriaMetrics.retentionPeriod }}"
+            - "-storageDataPath=/vm-data"
+          ports:
+            - name: http
+              containerPort: {{ .Values.victoriaMetrics.port }}
+          volumeMounts:
+            - name: vm-data
+              mountPath: /vm-data
+      volumes:
+        - name: vm-data
+          emptyDir: {}   # DEMO – dane znikną po restarcie poda
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.victoriaMetrics.name }}
+spec:
+  selector:
+    app: {{ .Values.victoriaMetrics.name }}
+  ports:
+    - name: http
+      port: {{ .Values.victoriaMetrics.port }}
+      targetPort: {{ .Values.victoriaMetrics.port }}
+  type: ClusterIP
+{{- end }}

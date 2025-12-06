@@ -1,0 +1,66 @@
+image:
+  pullPolicy: IfNotPresent
+
+otel:
+  tracesEndpoint: "http://otel-collector:4318/v1/traces"
+
+otelCollector:
+  image: "otel/opentelemetry-collector-contrib:0.99.0"
+  pullPolicy: IfNotPresent
+
+
+loki:
+  enabled: true
+  image: "grafana/loki:3.0.0"
+  pullPolicy: IfNotPresent
+  name: "loki"
+  port: 3100
+  ingestionRateMB: 256
+  ingestionBurstMB: 512
+  retentionPeriod: "1h"
+
+
+victoriaMetrics:
+  enabled: true
+  image: "victoriametrics/victoria-metrics:v1.103.0"
+  pullPolicy: IfNotPresent
+  name: "victoria-metrics"
+  port: 8428
+  retentionPeriod: "1d"
+
+jaeger:
+  name: "jaeger"
+  image: "jaegertracing/all-in-one:1.57"
+  pullPolicy: IfNotPresent
+  otlpEndpoint: "jaeger:4317"
+  uiPort: 16686
+
+redis:
+  image: "redis:7.2-alpine"
+  pullPolicy: IfNotPresent
+  serviceName: "redis"
+  port: 6379
+
+serviceA:
+  name: service-a
+  port: 8000
+  image: service-a:latest
+
+serviceB:
+  name: service-b
+  port: 8000
+  image: service-b:latest
+
+serviceC:
+  name: service-c
+  image: service-c:latest
+
+
+grafana:
+  enabled: true
+  name: "grafana"
+  image: "grafana/grafana:11.0.0"
+  pullPolicy: IfNotPresent
+  port: 3000
+  adminUser: "admin"
+  adminPassword: "admin"

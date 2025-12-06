@@ -9,22 +9,13 @@ spec:
   serviceAccountName: argo-workflow
   templates:
   - name: step1
-    outputs:
-      parameters:
-      - name: message
-        valueFrom:
-          path: /tmp/message.txt
     script:
       image: python:3.9
-      source: |-
+      source: |
         print("Hello from step 1!")
-        with open("/tmp/message.txt","w") as f: f.write("Hello from step 1!")
       command:
       - python
   - name: step2
-    inputs:
-      parameters:
-      - name: message
     retryStrategy:
       expression: asInt(lastRetry.exitCode) == 100
       limit: 4
@@ -51,10 +42,6 @@ spec:
         template: step1
     - - name: consume-message
         template: step2
-        arguments:
-          parameters:
-          - name: message
-            value: '{{steps.produce-message.outputs.parameters.message}}'
   ttlStrategy:
     secondsAfterCompletion: 3600
 

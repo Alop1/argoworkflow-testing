@@ -1,0 +1,213 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-collector
+subjects:
+  - kind: ServiceAccount
+    name: otel-collector
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+
+      filelog:
+        include:
+          - /var/log/containers/*_{{ .Release.Namespace }}_{{ .Values.serviceA.name }}-*.log
+          - /var/log/containers/*_{{ .Release.Namespace }}_{{ .Values.serviceB.name }}-*.log
+          - /var/log/containers/*_{{ .Release.Namespace }}_{{ .Values.serviceC.name }}-*.log
+        start_at: beginning
+        include_file_path: true
+        include_file_name: false
+        operators:
+          - type: json_parser
+            parse_from: body
+            on_error: drop
+          - type: move
+            from: attributes.log
+            to: body
+          - type: regex_parser
+            parse_from: attributes["log.file.path"]
+            regex: ".*/(?P<k8s.pod.name>[^_]+)_{{ .Release.Namespace }}_(?P<k8s.container.name>[a-z0-9-]+).*"
+          - type: regex_parser
+            parse_from: body
+            regex: "trace_id=(?P<trace_id>[^ ]+)"
+          - type: regex_parser
+            parse_from: body
+            regex: "span_id=(?P<span_id>[^ ]+)"
+          - type: regex_parser
+            parse_from: body
+            regex: "trace_sampled=(?P<trace_sampled>[^\\] ]+)"
+          - type: regex_parser
+            parse_from: body
+            regex: "^.*? - (?P<log_message>.*)$"
+          - type: move
+            from: attributes.log_message
+            to: body
+
+    processors:
+      k8sattributes:
+        auth_type: serviceAccount
+        extract:
+          metadata:
+            - k8s.pod.name
+            - k8s.namespace.name
+            - k8s.node.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.container.name
+      transform/enrich-logs:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], attributes["k8s.container.name"]) where attributes["k8s.container.name"] != nil
+              - set(attributes["service.namespace"], attributes["k8s.namespace.name"]) where attributes["k8s.namespace.name"] != nil
+              - set(attributes["service.instance.id"], attributes["k8s.pod.uid"]) where attributes["k8s.pod.uid"] != nil
+              - set(attributes["k8s.pod"], attributes["k8s.pod.name"]) where attributes["k8s.pod.name"] != nil
+              - set(attributes["k8s.container"], attributes["k8s.container.name"]) where attributes["k8s.container.name"] != nil
+              - set(attributes["deployment"], attributes["k8s.deployment.name"]) where attributes["k8s.deployment.name"] != nil
+              - set(attributes["trace.id"], attributes["trace_id"]) where attributes["trace_id"] != nil
+              - set(attributes["span.id"], attributes["span_id"]) where attributes["span_id"] != nil
+          - context: log
+            statements:
+              - set(body, attributes["log_message"]) where attributes["log_message"] != nil
+              - delete_key(attributes, "log_message") where attributes["log_message"] != nil
+              - set(attributes["log.file"], attributes["log.file.path"]) where attributes["log.file.path"] != nil
+              - set(attributes["log.stream"], attributes["stream"]) where attributes["stream"] != nil
+              - set(severity_text, attributes["level"]) where attributes["level"] != nil
+              - set(severity_text, "INFO") where severity_text == nil
+              - set(attributes["timestamp"], attributes["time"]) where attributes["time"] != nil
+              - delete_key(attributes, "trace_id") where attributes["trace_id"] != nil
+              - delete_key(attributes, "span_id") where attributes["span_id"] != nil
+              - delete_key(attributes, "stream") where attributes["stream"] != nil
+      batch: {}
+
+    exporters:
+      loki:
+        endpoint: "http://{{ .Values.loki.name }}:{{ .Values.loki.port }}/loki/api/v1/push"
+        tls:
+          insecure: true
+        default_labels_enabled:
+          resource: true
+          attributes: true
+
+      prometheusremotewrite:
+        endpoint: "http://{{ .Values.loki.name }}:{{ .Values.loki.port }}/loki/api/v1/push"
+
+      otlp/jaeger:
+        endpoint: {{ .Values.jaeger.otlpEndpoint | quote }}
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [k8sattributes, batch]
+          exporters: [otlp/jaeger]
+
+        metrics:
+          receivers: [otlp]
+          processors: [k8sattributes, batch]
+          exporters: [prometheusremotewrite]
+
+        logs:
+          receivers: [filelog]
+          processors: [k8sattributes, transform/enrich-logs, batch]
+          exporters: [loki]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-collector
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      serviceAccountName: otel-collector
+      containers:
+        - name: otel-collector
+          image: {{ .Values.otelCollector.image }}
+          imagePullPolicy: {{ .Values.otelCollector.pullPolicy }}
+          args: ["--config=/etc/otelcol/config.yaml"]
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+          volumeMounts:
+            - name: collector-config
+              mountPath: /etc/otelcol
+            - name: varlogcontainers
+              mountPath: /var/log/containers
+            - name: varlogpods
+              mountPath: /var/log/pods
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+          resources: {}
+      volumes:
+        - name: collector-config
+          configMap:
+            name: otel-collector-config
+        - name: varlogcontainers
+          hostPath:
+            path: /var/log/containers
+            type: Directory
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+            type: Directory
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+  type: ClusterIP

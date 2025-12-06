@@ -22,23 +22,24 @@ spec:
       command:
       - python
   - name: step2
-    timeout: 30s
+    timeout: 100s
     inputs:
       parameters:
       - name: message
     retryStrategy:
       expression: lastRetry.message matches 'Pod was active on the node longer than
-        the specified deadline'
+        the specified deadline' || lastRetry.message matches 'pod deleted'
       limit: 5
+      retryPolicy: Always
       backoff:
-        duration: '1'
+        duration: 1s
         factor: '2'
     script:
       image: python:3.9
       source: |
         import sys, time
         attempt = int("{{retries}}") + 1
-        sleep_secs = 45 if attempt < 3 else 10
+        sleep_secs = 90 if attempt < 3 else 10
         print(f"Attempt {attempt}: sleeping {sleep_secs}s")
         time.sleep(sleep_secs)
         print("Finished attempt", attempt)

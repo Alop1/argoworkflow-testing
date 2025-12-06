@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.serviceC.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.serviceC.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.serviceC.name }}
+    spec:
+      containers:
+        - name: {{ .Values.serviceC.name }}
+          image: {{ .Values.serviceC.image }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: SERVICE_NAME
+              value: {{ .Values.serviceC.name | quote }}
+            - name: REDIS_HOST
+              value: {{ .Values.redis.serviceName | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.redis.port | quote }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.otel.tracesEndpoint | quote }}
