@@ -15,7 +15,7 @@ app = Flask(__name__)
 
 setup_tracing(SERVICE_NAME)
 
-# instrumentacja HTTP server + client
+
 FlaskInstrumentor().instrument_app(app)
 RequestsInstrumentor().instrument()
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 @app.route("/start")
 def start():
-    # tu powstaje nowy trace (span HTTP GET /start)
+
     logger.info("Received request in service A, calling service B")
     resp = requests.post(SERVICE_B_URL, json={"payload": "hello-from-A"})
     return jsonify({"status": "ok", "service_b_status": resp.json()}), resp.status_code

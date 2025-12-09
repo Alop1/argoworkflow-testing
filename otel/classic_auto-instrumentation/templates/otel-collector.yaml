@@ -51,11 +51,13 @@ data:
         operators:
           # 0) CRI JSON -> rozpakuj do pól (log, stream, time)
           - type: json_parser
+            id: cri_json
             parse_from: body
-            on_error: drop
+            on_error: send_quiet
 
           # 1) pracujemy dalej na samym tekście logu
           - type: move
+            id: log_to_body
             from: attributes.log
             to: body
             on_error: send_quiet
@@ -63,41 +65,61 @@ data:
           # 2) wyciągamy pod / namespace / container z nazwy pliku
           # /var/log/containers/<pod>_<ns>_<container>-<id>.log
           - type: regex_parser
+            id: parse_filepath
             parse_from: attributes["log.file.path"]
             regex: ".*/(?P<pod_name>[^_]+)_(?P<namespace_name>[^_]+)_(?P<container_name>[^-]+-[^-]+)-.*\\.log"
             on_error: send_quiet
+
           - type: move
+            id: container_to_service
             from: attributes.container_name
             to: attributes.service_name
             on_error: send_quiet
+
           - type: move
+            id: namespace_to_service_namespace
             from: attributes.namespace_name
             to: attributes.service_namespace
             on_error: send_quiet
 
           # 3) trace_id / span_id / trace_sampled z body
           - type: regex_parser
+            id: extract_trace_id
             parse_from: body
             regex: "trace_id=(?P<trace_id>[^ ]+)"
             on_error: send_quiet
+
           - type: regex_parser
+            id: extract_span_id
             parse_from: body
             regex: "span_id=(?P<span_id>[^ ]+)"
             on_error: send_quiet
+
           - type: regex_parser
+            id: extract_trace_sampled
             parse_from: body
             regex: "trace_sampled=(?P<trace_sampled>[^\\] ]+)"
             on_error: send_quiet
 
-          # 4) wytnij prefix (do trzeciego ']' i ' - ') i zostaw sam message
-          # przykłady:
-          #   2025-... INFO [__main__] [app.py:27] [trace_id=...] - Received request ...
-          #   2025-... INFO [werkzeug] [_internal.py:97] [trace_id=...] - 10.244.2.137 - - [...]
+          # 4) wytnij prefix i zostaw sam message
+          # wariant 1 – typowy log z 3 blokami w []
+          # 2025-... INFO [__main__] [app.py:27] [trace_id=...] - MESSAGE
           - type: regex_parser
+            id: extract_msg_format1
             parse_from: body
-            regex: '^.*\[[^\]]*\]\s*\[[^\]]*\]\s*\[[^\]]*\]\s*-\s*(?P<msg>.*)$'
+            regex: '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{3}\s+\S+\s+\[[^\]]*]\s+\[[^\]]*]\s+\[[^\]]*]\s+-\s+(?P<msg>.*)$'
             on_error: send_quiet
+
+          # wariant 2 – fallback: weź wszystko po ostatnim " - "
+          - type: regex_parser
+            id: extract_msg_fallback
+            parse_from: body
+            if: 'attributes.msg == nil'
+            regex: '^.* - (?P<msg>.*)$'
+            on_error: send_quiet
+
           - type: move
+            id: msg_to_body
             from: attributes.msg
             to: body
             on_error: send_quiet
@@ -107,12 +129,12 @@ data:
         log_statements:
           - context: log
             statements:
-              # przenieś nazwę serwisu do resource, żeby Loki nie używał "unknown_service"
+              # wrzuć nazwy serwisów do resource – Loki nie będzie używał "unknown_service"
               - set(resource.attributes["service.name"], attributes["service_name"]) where attributes["service_name"] != nil
               - set(resource.attributes["service.namespace"], attributes["service_namespace"]) where attributes["service_namespace"] != nil
               - set(resource.attributes["service.instance.id"], attributes["pod_name"]) where attributes["pod_name"] != nil
 
-              # dodatkowo: trace.id/span.id jako ładniejsze klucze w atrybutach
+              # trace/span w ładniejszych kluczach
               - set(attributes["trace.id"], attributes["trace_id"]) where attributes["trace_id"] != nil
               - set(attributes["span.id"], attributes["span_id"]) where attributes["span_id"] != nil
 
