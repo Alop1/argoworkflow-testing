@@ -66,13 +66,10 @@ data:
             parse_from: attributes["log.file.path"]
             regex: ".*/(?P<pod_name>[^_]+)_(?P<namespace_name>[^_]+)_(?P<container_name>[^-]+-[^-]+)-.*\\.log"
             on_error: send_quiet
-
-          # service_name + namespace jako zwykłe atrybuty
           - type: move
             from: attributes.container_name
             to: attributes.service_name
             on_error: send_quiet
-
           - type: move
             from: attributes.namespace_name
             to: attributes.service_namespace
@@ -83,70 +80,41 @@ data:
             parse_from: body
             regex: "trace_id=(?P<trace_id>[^ ]+)"
             on_error: send_quiet
-
           - type: regex_parser
             parse_from: body
             regex: "span_id=(?P<span_id>[^ ]+)"
             on_error: send_quiet
-
           - type: regex_parser
             parse_from: body
             regex: "trace_sampled=(?P<trace_sampled>[^\\] ]+)"
             on_error: send_quiet
 
-          # 4) wyciągamy samą wiadomość logu (po ' - ')
-          # np.
-          # 2025-12-09 ... [trace...] - Received request ...
-          # 2025-12-09 ... [trace...] - 127.0.0.1 - - [..] "GET /..." 200 -
+          # 4) wytnij prefix (do trzeciego ']' i ' - ') i zostaw sam message
+          # przykłady:
+          #   2025-... INFO [__main__] [app.py:27] [trace_id=...] - Received request ...
+          #   2025-... INFO [werkzeug] [_internal.py:97] [trace_id=...] - 10.244.2.137 - - [...]
           - type: regex_parser
             parse_from: body
-            regex: "^.*? - (?P<log_message>.*)$"
+            regex: '^.*\[[^\]]*\]\s*\[[^\]]*\]\s*\[[^\]]*\]\s*-\s*(?P<msg>.*)$'
             on_error: send_quiet
-
           - type: move
-            from: attributes.log_message
+            from: attributes.msg
             to: body
             on_error: send_quiet
 
-    # procesory – dodatkowe wzbogacenie logów
     processors:
-      # k8sattributes:
-      #   auth_type: serviceAccount
-      #   extract:
-      #     metadata:
-      #       - k8s.pod.name
-      #       - k8s.namespace.name
-      #       - k8s.node.name
-      #       - k8s.pod.uid
-      #       - k8s.deployment.name
-      #       - k8s.container.name
-
-      transform/enrich-logs:
+      transform/logs:
         log_statements:
           - context: log
             statements:
-              # powiązanie z k8s
-              - set(attributes["k8s.pod.name"], attributes["pod_name"]) where attributes["pod_name"] != nil
-              - set(attributes["k8s.container.name"], attributes["service_name"]) where attributes["service_name"] != nil
-              - set(attributes["k8s.namespace.name"], attributes["service_namespace"]) where attributes["service_namespace"] != nil
+              # przenieś nazwę serwisu do resource, żeby Loki nie używał "unknown_service"
+              - set(resource.attributes["service.name"], attributes["service_name"]) where attributes["service_name"] != nil
+              - set(resource.attributes["service.namespace"], attributes["service_namespace"]) where attributes["service_namespace"] != nil
+              - set(resource.attributes["service.instance.id"], attributes["pod_name"]) where attributes["pod_name"] != nil
 
-              # trace + span jako ładne klucze
+              # dodatkowo: trace.id/span.id jako ładniejsze klucze w atrybutach
               - set(attributes["trace.id"], attributes["trace_id"]) where attributes["trace_id"] != nil
               - set(attributes["span.id"], attributes["span_id"]) where attributes["span_id"] != nil
-
-              # porządkowanie pól logu
-              - set(attributes["log.file"], attributes["log.file.path"]) where attributes["log.file.path"] != nil
-              - set(attributes["log.stream"], attributes["stream"]) where attributes["stream"] != nil
-              - set(attributes["timestamp"], attributes["time"]) where attributes["time"] != nil
-
-              # severity
-              - set(severity_text, attributes["level"]) where attributes["level"] != nil
-              - set(severity_text, "INFO") where severity_text == nil
-
-              # cleanup pomocniczych pól
-              - delete_key(attributes, "log_message") where attributes["log_message"] != nil
-              - delete_key(attributes, "stream") where attributes["stream"] != nil
-              - delete_key(attributes, "span_id") where attributes["span_id"] != nil
 
       batch: {}
 
@@ -166,17 +134,8 @@ data:
       pipelines:
         logs:
           receivers: [filelog]
-          processors: [transform/enrich-logs, batch]
+          processors: [transform/logs, batch]
           exporters: [debug/logs, otlphttp/logs]
-        # traces:
-        #   receivers: [otlp]
-        #   processors: [k8sattributes, batch]
-        #   exporters: [otlp/jaeger]
-        #
-        # metrics:
-        #   receivers: [otlp]
-        #   processors: [k8sattributes, batch]
-        #   exporters: [prometheusremotewrite]
 
 ---
 apiVersion: apps/v1
