@@ -19,7 +19,6 @@ spec:
           imagePullPolicy: {{ .Values.loki.pullPolicy }}
           args:
             - "-config.file=/etc/loki/config/config.yml"
-            - "-validation.allow-structured-metadata=false"
           ports:
             - name: http
               containerPort: {{ .Values.loki.port }}
@@ -33,7 +32,7 @@ spec:
           configMap:
             name: loki-config
         - name: loki-data
-          emptyDir: {}   # DEMO – bez trwałego storage
+          emptyDir: {}   # demo – brak persystentnego storage
 
 ---
 apiVersion: v1
@@ -59,17 +58,14 @@ data:
         kvstore:
           store: inmemory
 
-    limits_config:
-      allow_structured_metadata: false
-      ingestion_rate_mb: {{ .Values.loki.ingestionRateMB }}
-      ingestion_burst_size_mb: {{ .Values.loki.ingestionBurstMB }}
-
+    # wymagane dla native OTLP + structured metadata:
+    # schema v13 + store: tsdb
     schema_config:
       configs:
-        - from: 2020-10-24
-          store: boltdb-shipper
+        - from: 2025-01-01
+          store: tsdb
           object_store: filesystem
-          schema: v11
+          schema: v13
           index:
             prefix: index_
             period: 24h
@@ -77,6 +73,23 @@ data:
     storage_config:
       filesystem:
         directory: /loki/chunks
+
+    limits_config:
+      allow_structured_metadata: true
+      ingestion_rate_mb: {{ .Values.loki.ingestionRateMB }}
+      ingestion_burst_size_mb: {{ .Values.loki.ingestionBurstMB }}
+
+      # globalna retencja – logi trzymane około 1h
+      # (Ty masz w values.yaml "1h")
+      retention_period: {{ .Values.loki.retentionPeriod }}
+
+    compactor:
+      working_directory: /loki/compactor
+      compaction_interval: 5m
+      retention_enabled: true
+      retention_delete_delay: 5m
+      # dla filesystem używamy delete_request_store=filesystem
+      delete_request_store: filesystem
 
     ruler:
       storage:

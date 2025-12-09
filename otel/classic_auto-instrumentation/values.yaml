@@ -11,13 +11,13 @@ otelCollector:
 
 loki:
   enabled: true
-  image: "grafana/loki:3.0.0"
+  image: "grafana/loki:3.5.7"
   pullPolicy: IfNotPresent
   name: "loki"
   port: 3100
-  ingestionRateMB: 256
-  ingestionBurstMB: 512
-  retentionPeriod: "1h"
+  ingestionRateMB: 32
+  ingestionBurstMB: 64
+  retentionPeriod: "24h"
 
 
 victoriaMetrics:

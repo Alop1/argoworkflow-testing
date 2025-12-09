@@ -13,7 +13,7 @@ SERVICE_B_URL = os.getenv("SERVICE_B_URL", "http://service-b:8000/process")
 
 app = Flask(__name__)
 
-tracer = setup_tracing(SERVICE_NAME)
+setup_tracing(SERVICE_NAME)
 
 # instrumentacja HTTP server + client
 FlaskInstrumentor().instrument_app(app)
