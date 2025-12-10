@@ -6,7 +6,7 @@ import redis
 
 from opentelemetry import trace
 from opentelemetry.propagate import extract
-from common import setup_tracing
+from common import setup_tracing, setup_metrics
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "service-c")
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
@@ -14,6 +14,8 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_QUEUE = os.getenv("REDIS_QUEUE", "tasks")
 
 tracer = setup_tracing(SERVICE_NAME)
+# enable OTEL metrics export for this service
+setup_metrics(SERVICE_NAME)
 logger = logging.getLogger(__name__)
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 

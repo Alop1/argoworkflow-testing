@@ -154,6 +154,9 @@ data:
       debug/logs:
         verbosity: detailed
 
+      prometheusremotewrite:
+        endpoint: "http://{{ .Values.victoriaMetrics.name }}:{{ .Values.victoriaMetrics.port }}/api/v1/write"
+
     service:
       telemetry:
         logs:
@@ -167,6 +170,10 @@ data:
           receivers: [otlp]
           processors: [batch]
           exporters: [otlp/jaeger]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheusremotewrite]
 ---
 apiVersion: apps/v1
 kind: DaemonSet

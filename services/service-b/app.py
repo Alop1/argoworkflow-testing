@@ -6,7 +6,7 @@ import redis
 
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.propagate import inject
-from common import setup_tracing
+from common import setup_tracing, setup_metrics
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "service-b")
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
@@ -16,6 +16,8 @@ REDIS_QUEUE = os.getenv("REDIS_QUEUE", "tasks")
 app = Flask(__name__)
 
 tracer = setup_tracing(SERVICE_NAME)
+# enable OTEL metrics export (auto-instrumentation)
+setup_metrics(SERVICE_NAME)
 FlaskInstrumentor().instrument_app(app)
 
 logger = logging.getLogger(__name__)
