@@ -49,13 +49,13 @@ data:
         include_file_path: true
         include_file_name: false
         operators:
-          # 0) CRI JSON -> rozpakuj do pól (log, stream, time)
+
           - type: json_parser
             id: cri_json
             parse_from: body
             on_error: send_quiet
 
-          # 1) pracujemy dalej na samym tekście logu
+
           - type: move
             id: log_to_body
             from: attributes.log
@@ -146,6 +146,11 @@ data:
         tls:
           insecure: true
 
+      otlp/jaeger:
+        endpoint: "jaeger:4317"
+        tls:
+          insecure: true
+
       debug/logs:
         verbosity: detailed
 
@@ -158,7 +163,10 @@ data:
           receivers: [filelog]
           processors: [transform/logs, batch]
           exporters: [debug/logs, otlphttp/logs]
-
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/jaeger]
 ---
 apiVersion: apps/v1
 kind: DaemonSet
