@@ -1,25 +1,25 @@
-{{- if .Values.serviceC.enabled }}
+{{- if .Values.serviceZ.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.serviceC.name }}
+  name: {{ .Values.serviceZ.name }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Values.serviceC.name }}
+      app: {{ .Values.serviceZ.name }}
   template:
     metadata:
       labels:
-        app: {{ .Values.serviceC.name }}
+        app: {{ .Values.serviceZ.name }}
     spec:
       containers:
-        - name: {{ .Values.serviceC.name }}
-          image: {{ .Values.serviceC.image }}
+        - name: {{ .Values.serviceZ.name }}
+          image: {{ .Values.serviceZ.image }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: SERVICE_NAME
-              value: {{ .Values.serviceC.name | quote }}
+              value: {{ .Values.serviceZ.name | quote }}
             - name: REDIS_HOST
               value: {{ .Values.redis.serviceName | quote }}
             - name: REDIS_PORT

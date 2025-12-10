@@ -1,25 +1,25 @@
-{{- if .Values.serviceB.enabled }}
+{{- if .Values.serviceY.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.serviceB.name }}
+  name: {{ .Values.serviceY.name }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Values.serviceB.name }}
+      app: {{ .Values.serviceY.name }}
   template:
     metadata:
       labels:
-        app: {{ .Values.serviceB.name }}
+        app: {{ .Values.serviceY.name }}
     spec:
       containers:
-        - name: {{ .Values.serviceB.name }}
-          image: {{ .Values.serviceB.image }}
+        - name: {{ .Values.serviceY.name }}
+          image: {{ .Values.serviceY.image }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: SERVICE_NAME
-              value: {{ .Values.serviceB.name | quote }}
+              value: {{ .Values.serviceY.name | quote }}
             - name: REDIS_HOST
               value: {{ .Values.redis.serviceName | quote }}
             - name: REDIS_PORT
@@ -27,18 +27,18 @@ spec:
             - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.otel.tracesEndpoint | quote }}
           ports:
-            - containerPort: {{ .Values.serviceB.port }}
+            - containerPort: {{ .Values.serviceY.port }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.serviceB.name }}
+  name: {{ .Values.serviceY.name }}
 spec:
   selector:
-    app: {{ .Values.serviceB.name }}
+    app: {{ .Values.serviceY.name }}
   ports:
     - name: http
-      port: {{ .Values.serviceB.port }}
-      targetPort: {{ .Values.serviceB.port }}
+      port: {{ .Values.serviceY.port }}
+      targetPort: {{ .Values.serviceY.port }}
   type: ClusterIP
 {{- end }}

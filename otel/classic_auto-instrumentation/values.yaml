@@ -42,18 +42,39 @@ redis:
   port: 6379
 
 serviceA:
+  enabled: true
   name: service-a
   port: 8000
   image: service-a:latest
 
 serviceB:
+  enabled: true
   name: service-b
   port: 8000
   image: service-b:latest
 
 serviceC:
+  enabled: true
   name: service-c
   image: service-c:latest
+
+
+serviceX:
+  enabled: true
+  name: service-x
+  port: 8000
+  image: service-x:latest
+
+serviceY:
+  enabled: true
+  name: service-y
+  port: 8000
+  image: service-y:latest
+
+serviceZ:
+  enabled: true
+  name: service-z
+  image: service-z:latest
 
 
 grafana:

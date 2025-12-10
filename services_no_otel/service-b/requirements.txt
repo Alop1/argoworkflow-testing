@@ -1,0 +1,8 @@
+flask
+opentelemetry-instrumentation-logging
+opentelemetry-instrumentation-flask
+opentelemetry-exporter-otlp
+opentelemetry-sdk
+opentelemetry-api
+redis
+

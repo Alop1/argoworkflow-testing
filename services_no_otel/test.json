@@ -1,0 +1,97 @@
+[
+  {
+    "line": "2025-12-09 19:37:00,275 INFO [__main__] [app.py:27] [trace_id=111d1eeaa813a222882cf822386c1a49 span_id=25b0e85fb37f7e03 resource.service.name=service-a trace_sampled=True] - Received request in service A, calling service B\n",
+    "timestamp": "1765309020285789628",
+    "fields": {
+      "detected_level": "info",
+      "k8s_pod_name": "service-a-6ffc7bb4df-xzbnh",
+      "log_file": "/var/log/containers/service-a-6ffc7bb4df-xzbnh_otel-demo_service-a-0d57cc67a7d8ecee865f7a3f818e2af0a45a6a609c9c0ac11f82db3d722f8db7.log",
+      "log_file_path": "/var/log/containers/service-a-6ffc7bb4df-xzbnh_otel-demo_service-a-0d57cc67a7d8ecee865f7a3f818e2af0a45a6a609c9c0ac11f82db3d722f8db7.log",
+      "log_stream": "stderr",
+      "pod_name": "service-a-6ffc7bb4df-xzbnh",
+      "service_name": "service-a",
+      "service_namespace": "otel-demo",
+      "span_id": "25b0e85fb37f7e03",
+      "time": "2025-12-09T19:37:00.276628337Z",
+      "timestamp": "2025-12-09T19:37:00.276628337Z",
+      "trace_id": "111d1eeaa813a222882cf822386c1a49",
+      "trace_sampled": "True"
+    }
+  },
+  {
+    "line": "2025-12-09 19:37:00,302 INFO [__main__] [app.py:32] [trace_id=111d1eeaa813a222882cf822386c1a49 span_id=a301b5d1875d22f9 resource.service.name=service-c trace_sampled=True] - Service C processing task\n",
+    "timestamp": "1765309020486715504",
+    "fields": {
+      "detected_level": "info",
+      "k8s_pod_name": "service-c-76c6cdd57f-kgwzj",
+      "log_file": "/var/log/containers/service-c-76c6cdd57f-kgwzj_otel-demo_service-c-48ecfc587723214dd24b9427c720e550c5240145dd477b42c2f244907164dc18.log",
+      "log_file_path": "/var/log/containers/service-c-76c6cdd57f-kgwzj_otel-demo_service-c-48ecfc587723214dd24b9427c720e550c5240145dd477b42c2f244907164dc18.log",
+      "log_stream": "stderr",
+      "pod_name": "service-c-76c6cdd57f-kgwzj",
+      "service_name": "service-c",
+      "service_namespace": "otel-demo",
+      "span_id": "a301b5d1875d22f9",
+      "time": "2025-12-09T19:37:00.303425753Z",
+      "timestamp": "2025-12-09T19:37:00.303425753Z",
+      "trace_id": "111d1eeaa813a222882cf822386c1a49",
+      "trace_sampled": "True"
+    }
+  },
+  {
+    "line": "2025-12-09 19:37:00,302 INFO [werkzeug] [_internal.py:97] [trace_id=0 span_id=0 resource.service.name=service-a trace_sampled=False] - 127.0.0.1 - - [09/Dec/2025 19:37:00] \"GET /start HTTP/1.1\" 200 -\n",
+    "timestamp": "1765309020486781462",
+    "fields": {
+      "detected_level": "info",
+      "k8s_pod_name": "service-a-6ffc7bb4df-xzbnh",
+      "log_file": "/var/log/containers/service-a-6ffc7bb4df-xzbnh_otel-demo_service-a-0d57cc67a7d8ecee865f7a3f818e2af0a45a6a609c9c0ac11f82db3d722f8db7.log",
+      "log_file_path": "/var/log/containers/service-a-6ffc7bb4df-xzbnh_otel-demo_service-a-0d57cc67a7d8ecee865f7a3f818e2af0a45a6a609c9c0ac11f82db3d722f8db7.log",
+      "log_stream": "stderr",
+      "pod_name": "service-a-6ffc7bb4df-xzbnh",
+      "service_name": "service-a",
+      "service_namespace": "otel-demo",
+      "span_id": "0",
+      "time": "2025-12-09T19:37:00.302367212Z",
+      "timestamp": "2025-12-09T19:37:00.302367212Z",
+      "trace_id": "0",
+      "trace_sampled": "False"
+    }
+  },
+  {
+    "line": "2025-12-09 19:37:00,294 INFO [__main__] [app.py:28] [trace_id=111d1eeaa813a222882cf822386c1a49 span_id=06f567f88e48638f resource.service.name=service-b trace_sampled=True] - Service B received request, pushing task to queue\n",
+    "timestamp": "1765309020486803420",
+    "fields": {
+      "detected_level": "info",
+      "k8s_pod_name": "service-b-74784d98f4-hrcxb",
+      "log_file": "/var/log/containers/service-b-74784d98f4-hrcxb_otel-demo_service-b-69870c0971dcfc9aad8abe2573bf4f04f8a23ee56b182904ad949f478aedbec9.log",
+      "log_file_path": "/var/log/containers/service-b-74784d98f4-hrcxb_otel-demo_service-b-69870c0971dcfc9aad8abe2573bf4f04f8a23ee56b182904ad949f478aedbec9.log",
+      "log_stream": "stderr",
+      "pod_name": "service-b-74784d98f4-hrcxb",
+      "service_name": "service-b",
+      "service_namespace": "otel-demo",
+      "span_id": "06f567f88e48638f",
+      "time": "2025-12-09T19:37:00.29584942Z",
+      "timestamp": "2025-12-09T19:37:00.29584942Z",
+      "trace_id": "111d1eeaa813a222882cf822386c1a49",
+      "trace_sampled": "True"
+    }
+  },
+  {
+    "line": "2025-12-09 19:37:00,299 INFO [werkzeug] [_internal.py:97] [trace_id=0 span_id=0 resource.service.name=service-b trace_sampled=False] - 10.244.2.137 - - [09/Dec/2025 19:37:00] \"POST /process HTTP/1.1\" 200 -\n",
+    "timestamp": "1765309020486990754",
+    "fields": {
+      "detected_level": "info",
+      "k8s_pod_name": "service-b-74784d98f4-hrcxb",
+      "log_file": "/var/log/containers/service-b-74784d98f4-hrcxb_otel-demo_service-b-69870c0971dcfc9aad8abe2573bf4f04f8a23ee56b182904ad949f478aedbec9.log",
+      "log_file_path": "/var/log/containers/service-b-74784d98f4-hrcxb_otel-demo_service-b-69870c0971dcfc9aad8abe2573bf4f04f8a23ee56b182904ad949f478aedbec9.log",
+      "log_stream": "stderr",
+      "pod_name": "service-b-74784d98f4-hrcxb",
+      "service_name": "service-b",
+      "service_namespace": "otel-demo",
+      "span_id": "0",
+      "time": "2025-12-09T19:37:00.299420128Z",
+      "timestamp": "2025-12-09T19:37:00.299420128Z",
+      "trace_id": "0",
+      "trace_sampled": "False"
+    }
+  }
+]

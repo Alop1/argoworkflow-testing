@@ -1,25 +1,25 @@
-{{- if .Values.serviceA.enabled }}
+{{- if .Values.serviceX.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.serviceA.name }}
+  name: {{ .Values.serviceX.name }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Values.serviceA.name }}
+      app: {{ .Values.serviceX.name }}
   template:
     metadata:
       labels:
-        app: {{ .Values.serviceA.name }}
+        app: {{ .Values.serviceX.name }}
     spec:
       containers:
-        - name: {{ .Values.serviceA.name }}
-          image: {{ .Values.serviceA.image }}
+        - name: {{ .Values.serviceX.name }}
+          image: {{ .Values.serviceX.image }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: SERVICE_NAME
-              value: {{ .Values.serviceA.name | quote }}
+              value: {{ .Values.serviceX.name | quote }}
             - name: SERVICE_B_URL
               value: {{ printf "http://%s:%v/process" .Values.serviceB.name .Values.serviceB.port | quote }}
             - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
@@ -27,18 +27,18 @@ spec:
           command: ["python"]
           args: ["/app/app.py"]
           ports:
-            - containerPort: {{ .Values.serviceA.port }}
+            - containerPort: {{ .Values.serviceX.port }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.serviceA.name }}
+  name: {{ .Values.serviceX.name }}
 spec:
   selector:
-    app: {{ .Values.serviceA.name }}
+    app: {{ .Values.serviceX.name }}
   ports:
     - name: http
-      port: {{ .Values.serviceA.port }}
-      targetPort: {{ .Values.serviceA.port }}
+      port: {{ .Values.serviceX.port }}
+      targetPort: {{ .Values.serviceX.port }}
   type: ClusterIP
 {{- end }}
