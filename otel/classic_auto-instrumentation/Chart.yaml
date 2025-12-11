@@ -4,3 +4,9 @@ description: Demo Otel
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
+
+
+#dependencies:
+#  - name: opentelemetry-operator
+#    version:  0.99.2
+#    repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"

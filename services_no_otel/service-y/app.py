@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import sys
 from flask import Flask, request, jsonify
 import redis
 
@@ -8,7 +9,7 @@ from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.propagate import inject
 from common import setup_tracing, setup_metrics
 
-SERVICE_NAME = os.getenv("SERVICE_NAME", "service-b")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "service-y")
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_QUEUE = os.getenv("REDIS_QUEUE", "tasks")
@@ -20,6 +21,13 @@ app = Flask(__name__)
 # setup_metrics(SERVICE_NAME)
 # FlaskInstrumentor().instrument_app(app)
 
+# Configure root logger to print to stdout at INFO level
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+
 logger = logging.getLogger(__name__)
 
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0)
@@ -27,7 +35,7 @@ redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 @app.route("/process", methods=["POST"])
 def process():
     body = request.get_json() or {}
-    logger.info("Service B received request, pushing task to queue")
+    logger.info("Service Y received request, pushing task to queue")
 
     task = {
         "payload": body.get("payload", "no-payload"),

@@ -1,3 +1,4 @@
+{{- if .Values.otelCollector.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -62,8 +63,6 @@ data:
             to: body
             on_error: send_quiet
 
-          # 2) wyciągamy pod / namespace / container z nazwy pliku
-          # /var/log/containers/<pod>_<ns>_<container>-<id>.log
           - type: regex_parser
             id: parse_filepath
             parse_from: attributes["log.file.path"]
@@ -82,7 +81,6 @@ data:
             to: attributes.service_namespace
             on_error: send_quiet
 
-          # 3) trace_id / span_id / trace_sampled z body
           - type: regex_parser
             id: extract_trace_id
             parse_from: body
@@ -101,16 +99,12 @@ data:
             regex: "trace_sampled=(?P<trace_sampled>[^\\] ]+)"
             on_error: send_quiet
 
-          # 4) wytnij prefix i zostaw sam message
-          # wariant 1 – typowy log z 3 blokami w []
-          # 2025-... INFO [__main__] [app.py:27] [trace_id=...] - MESSAGE
           - type: regex_parser
             id: extract_msg_format1
             parse_from: body
             regex: '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{3}\s+\S+\s+\[[^\]]*]\s+\[[^\]]*]\s+\[[^\]]*]\s+-\s+(?P<msg>.*)$'
             on_error: send_quiet
 
-          # wariant 2 – fallback: weź wszystko po ostatnim " - "
           - type: regex_parser
             id: extract_msg_fallback
             parse_from: body
@@ -129,12 +123,9 @@ data:
         log_statements:
           - context: log
             statements:
-              # wrzuć nazwy serwisów do resource – Loki nie będzie używał "unknown_service"
               - set(resource.attributes["service.name"], attributes["service_name"]) where attributes["service_name"] != nil
               - set(resource.attributes["service.namespace"], attributes["service_namespace"]) where attributes["service_namespace"] != nil
               - set(resource.attributes["service.instance.id"], attributes["pod_name"]) where attributes["pod_name"] != nil
-
-              # trace/span w ładniejszych kluczach
               - set(attributes["trace.id"], attributes["trace_id"]) where attributes["trace_id"] != nil
               - set(attributes["span.id"], attributes["span_id"]) where attributes["span_id"] != nil
 
@@ -241,3 +232,4 @@ spec:
       port: 4318
       targetPort: 4318
   type: ClusterIP
+{{- end }}

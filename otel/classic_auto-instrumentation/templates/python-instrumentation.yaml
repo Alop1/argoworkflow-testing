@@ -1,0 +1,18 @@
+{{- if .Values.pythonInstrumentation.enabled }}
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: python-instrumentation
+  namespace: otel-demo
+spec:
+  exporter:
+    endpoint: http://demo-collector:4318
+  env:
+  propagators:
+    - tracecontext
+    - baggage
+  python:
+    env:
+      - name: OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED
+        value: 'true'
+{{- end }}

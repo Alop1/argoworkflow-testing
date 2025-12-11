@@ -10,6 +10,8 @@ spec:
       app: {{ .Values.serviceZ.name }}
   template:
     metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "python-instrumentation"
       labels:
         app: {{ .Values.serviceZ.name }}
     spec:
@@ -25,5 +27,5 @@ spec:
             - name: REDIS_PORT
               value: {{ .Values.redis.port | quote }}
             - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-              value: {{ .Values.otel.tracesEndpoint | quote }}
+              value: {{ .Values.otelOperatorCollector.tracesEndpoint | quote }}
 {{- end }}

@@ -10,6 +10,8 @@ spec:
       app: {{ .Values.serviceX.name }}
   template:
     metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "python-instrumentation"
       labels:
         app: {{ .Values.serviceX.name }}
     spec:
@@ -20,12 +22,8 @@ spec:
           env:
             - name: SERVICE_NAME
               value: {{ .Values.serviceX.name | quote }}
-            - name: SERVICE_B_URL
-              value: {{ printf "http://%s:%v/process" .Values.serviceB.name .Values.serviceB.port | quote }}
-            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-              value: {{ .Values.otel.tracesEndpoint | quote }}
-          command: ["python"]
-          args: ["/app/app.py"]
+            - name: SERVICE_Y_URL
+              value: {{ printf "http://%s:%v/process" .Values.serviceY.name .Values.serviceY.port | quote }}
           ports:
             - containerPort: {{ .Values.serviceX.port }}
 ---

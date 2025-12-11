@@ -66,3 +66,13 @@ kubectl port-forward -n $NAMESPACE svc/jaeger 4317:4317
 #GRAFANA
 http://localhost:3000
 ```
+
+
+```shell
+helm upgrade --install opentelemetry-operator \
+  opentelemetry-operator/opentelemetry-operator \
+  -n otel-demo \
+  --create-namespace \
+  --set admissionWebhooks.certManager.enabled=false \
+  --set admissionWebhooks.autoGenerateCert.enabled=true
+```

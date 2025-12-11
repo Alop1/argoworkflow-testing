@@ -8,10 +8,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY common.py ./common.py
 COPY app.py ./app.py
 
-ENV SERVICE_NAME=service-c \
+ENV SERVICE_NAME=service-z \
     REDIS_HOST=redis \
     REDIS_PORT=6379 \
-    REDIS_QUEUE=tasks \
-    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
+    REDIS_QUEUE=tasks
+
 
 CMD ["python", "app.py"]

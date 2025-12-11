@@ -5,8 +5,11 @@ otel:
   tracesEndpoint: "http://otel-collector:4318/v1/traces"
 
 otelCollector:
+  enabled: false
   image: "otel/opentelemetry-collector-contrib:0.99.0"
   pullPolicy: IfNotPresent
+
+
 
 
 loki:
@@ -42,19 +45,19 @@ redis:
   port: 6379
 
 serviceA:
-  enabled: true
+  enabled: false
   name: service-a
   port: 8000
   image: service-a:latest
 
 serviceB:
-  enabled: true
+  enabled: false
   name: service-b
   port: 8000
   image: service-b:latest
 
 serviceC:
-  enabled: true
+  enabled: false
   name: service-c
   image: service-c:latest
 
@@ -85,3 +88,13 @@ grafana:
   port: 3000
   adminUser: "admin"
   adminPassword: "admin"
+
+
+
+
+otelOperatorCollector:
+  enabled: true
+  tracesEndpoint: "http://demo-collector:4318/v1/traces"
+
+pythonInstrumentation:
+  enabled: true
